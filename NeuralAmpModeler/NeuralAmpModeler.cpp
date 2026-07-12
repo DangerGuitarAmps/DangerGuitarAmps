@@ -442,6 +442,7 @@ void NeuralAmpModeler::OnReset()
   // If there is a model or IR loaded, they need to be checked for resampling.
   _ResetModelAndIR(sampleRate, GetBlockSize());
   mToneStack->Reset(sampleRate, maxBlockSize);
+  mReverbIRStage.Prepare(sampleRate, maxBlockSize);
   _UpdateLatency();
 }
 
@@ -624,6 +625,7 @@ void NeuralAmpModeler::_AllocateIOPointers(const size_t nChans)
 
 void NeuralAmpModeler::_ApplyDSPStaging()
 {
+  mReverbIRStage.ApplyStaged();
   // Remove marked modules
   if (mShouldRemoveModel)
   {
