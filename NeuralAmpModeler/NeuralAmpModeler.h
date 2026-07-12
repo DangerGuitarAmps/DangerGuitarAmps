@@ -48,6 +48,13 @@ enum EParams
   kInputCalibrationLevel,
   kOutputMode,
   kSlim,
+  // Reverb IR parameters must remain appended for session compatibility.
+  kReverbIRBypass,
+  kReverbIRMix,
+  kReverbIRPreDelay,
+  kReverbIRLowCut,
+  kReverbIRHighCut,
+  kReverbIRWetLevel,
   kNumParams
 };
 
@@ -246,6 +253,7 @@ private:
   // Return status code so that error messages can be relayed if
   // it wasn't successful.
   dsp::wav::LoadReturnCode _StageIR(const WDL_String& irPath);
+  dsp::wav::LoadReturnCode _StageReverbIR(const WDL_String& irPath);
 
   bool _HaveModel() const { return this->mModel != nullptr; };
   // Prepare the input & output buffers
@@ -267,6 +275,7 @@ private:
   void _SetInputGain();
   void _SetOutputGain();
   void _ApplySlimParamToLoadedNAMs();
+  void _ApplyReverbIRParams();
 
   // See: Unserialization.cpp
   void _UnserializeApplyConfig(nlohmann::json& config);
@@ -335,6 +344,8 @@ private:
   WDL_String mNAMPath;
   // Path to IR (.wav file)
   WDL_String mIRPath;
+  // Reverb IR is independent from the existing Speaker IR.
+  WDL_String mReverbIRPath;
 
   WDL_String mHighLightColor{PluginColors::NAM_THEMECOLOR.ToColorCode()};
 

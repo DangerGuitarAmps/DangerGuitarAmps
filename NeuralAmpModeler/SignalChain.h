@@ -62,7 +62,16 @@ public:
     std::lock_guard<std::mutex> lock(mExchangeMutex);
     mRetired.reset();
     mStaged = std::move(candidate);
+    mClearRequested = false;
     return result;
+  }
+
+  void RequestClear()
+  {
+    std::lock_guard<std::mutex> lock(mExchangeMutex);
+    mStaged.reset();
+    mRetired.reset();
+    mClearRequested = true;
   }
 
   void Prepare(const double sampleRate, const std::size_t maxBlockSize)
@@ -70,6 +79,8 @@ public:
     std::lock_guard<std::mutex> lock(mExchangeMutex);
     mSampleRate = sampleRate;
     mMaxBlockSize = std::max<std::size_t>(maxBlockSize, 1);
+    if (mClearRequested)
+      return;
 
     // OnReset is an off-audio preparation point. Rebuild loaded convolution
     // state at a new sample rate, retaining the raw IR data.
@@ -89,7 +100,12 @@ public:
     if (!mExchangeMutex.try_lock())
       return;
 
-    if (mStaged != nullptr && mRetired == nullptr)
+    if (mClearRequested && mRetired == nullptr)
+    {
+      mRetired = std::move(mActive);
+      mClearRequested = false;
+    }
+    else if (mStaged != nullptr && mRetired == nullptr)
     {
       mRetired = std::move(mActive);
       mActive = std::move(mStaged);
@@ -227,6 +243,7 @@ private:
   // Replaced state is reclaimed by the next off-thread StageFile/Prepare call,
   // preventing a convolution destructor/free from running in ProcessBlock.
   std::unique_ptr<State> mRetired;
+  bool mClearRequested = false;
   std::mutex mExchangeMutex;
   double mSampleRate = 48000.0;
   std::size_t mMaxBlockSize = 1;

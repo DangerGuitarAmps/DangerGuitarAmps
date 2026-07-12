@@ -56,6 +56,7 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
 
   mNAMPath.Set(static_cast<std::string>(config["NAMPath"]).c_str());
   mIRPath.Set(static_cast<std::string>(config["IRPath"]).c_str());
+  mReverbIRPath.Set(static_cast<std::string>(config["ReverbIRPath"]).c_str());
 
   if (mNAMPath.GetLength())
   {
@@ -64,6 +65,17 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
   if (mIRPath.GetLength())
   {
     _StageIR(mIRPath);
+  }
+  if (mReverbIRPath.GetLength())
+  {
+    // A missing or unsupported Reverb IR is non-fatal. _StageReverbIR()
+    // requests a safe engine clear and internal bypass on failure.
+    _StageReverbIR(mReverbIRPath);
+  }
+  else
+  {
+    mReverbIRStage.RequestClear();
+    mReverbIRStage.SetBypassed(true);
   }
 }
 
@@ -97,11 +109,58 @@ void _RenameKeys(nlohmann::json& j, std::unordered_map<std::string, std::string>
   }
 }
 
+// v0.7.16: NAM path, Speaker IR path, Reverb IR path, then named parameters.
+int _GetConfigFrom_0_7_16(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  return pos;
+}
+
 // v0.7.14
 
 void _UpdateConfigFrom_0_7_14(nlohmann::json& config)
 {
-  // Fill me in once something changes!
+  // v0.7.15 and earlier have no Reverb IR path or parameters.
+  config["ReverbIRPath"] = "";
+  config["ReverbIRBypass"] = 1.0;
+  config["ReverbIRMix"] = 0.0;
+  config["ReverbIRPreDelay"] = 0.0;
+  config["ReverbIRLowCut"] = 20.0;
+  config["ReverbIRHighCut"] = 20000.0;
+  config["ReverbIRWetLevel"] = 0.0;
 }
 
 int _GetConfigFrom_0_7_14(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
@@ -277,7 +336,11 @@ int NeuralAmpModeler::_UnserializeStateWithKnownVersion(const iplug::IByteChunk&
   _Version version(versionStr);
   // Act accordingly
   nlohmann::json config;
-  if (version >= _Version(0, 7, 14))
+  if (version >= _Version(0, 7, 16))
+  {
+    pos = _GetConfigFrom_0_7_16(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 14))
   {
     pos = _GetConfigFrom_0_7_14(chunk, pos, config);
   }

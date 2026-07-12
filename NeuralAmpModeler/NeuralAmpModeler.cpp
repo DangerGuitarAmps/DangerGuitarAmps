@@ -97,6 +97,13 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kInputCalibrationLevel)
     ->InitDouble(kInputCalibrationLevelParamName.c_str(), kDefaultInputCalibrationLevel, -60.0, 60.0, 0.1, "dBu");
   GetParam(kSlim)->InitDouble("Slim", 0.0, 0.0, 1.0, 0.01);
+  GetParam(kReverbIRBypass)->InitBool("ReverbIRBypass", true);
+  GetParam(kReverbIRMix)->InitDouble("ReverbIRMix", 0.0, 0.0, 100.0, 0.1, "%");
+  GetParam(kReverbIRPreDelay)->InitDouble("ReverbIRPreDelay", 0.0, 0.0, 200.0, 0.1, "ms");
+  GetParam(kReverbIRLowCut)->InitDouble("ReverbIRLowCut", 20.0, 20.0, 1000.0, 1.0, "Hz");
+  GetParam(kReverbIRHighCut)->InitDouble("ReverbIRHighCut", 20000.0, 1000.0, 20000.0, 1.0, "Hz");
+  GetParam(kReverbIRWetLevel)->InitGain("ReverbIRWetLevel", 0.0, -24.0, 12.0, 0.1);
+  _ApplyReverbIRParams();
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
@@ -490,6 +497,7 @@ bool NeuralAmpModeler::SerializeState(IByteChunk& chunk) const
   // when we unserialize)
   chunk.PutStr(mNAMPath.Get());
   chunk.PutStr(mIRPath.Get());
+  chunk.PutStr(mReverbIRPath.Get());
   return SerializeParams(chunk);
 }
 
@@ -553,6 +561,12 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kToneMid: mToneStack->SetParam("middle", GetParam(paramIdx)->Value()); break;
     case kToneTreble: mToneStack->SetParam("treble", GetParam(paramIdx)->Value()); break;
     case kSlim: _ApplySlimParamToLoadedNAMs(); break;
+    case kReverbIRBypass:
+    case kReverbIRMix:
+    case kReverbIRPreDelay:
+    case kReverbIRLowCut:
+    case kReverbIRHighCut:
+    case kReverbIRWetLevel: _ApplyReverbIRParams(); break;
     default: break;
   }
 }
@@ -855,6 +869,31 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   }
 
   return wavState;
+}
+
+dsp::wav::LoadReturnCode NeuralAmpModeler::_StageReverbIR(const WDL_String& irPath)
+{
+  const auto result = mReverbIRStage.StageFile(irPath.Get(), GetSampleRate(), std::max(GetBlockSize(), 1));
+  if (result == dsp::wav::LoadReturnCode::SUCCESS)
+  {
+    mReverbIRPath = irPath;
+    _ApplyReverbIRParams();
+  }
+  else
+  {
+    mReverbIRStage.RequestClear();
+    mReverbIRStage.SetBypassed(true);
+  }
+  return result;
+}
+
+void NeuralAmpModeler::_ApplyReverbIRParams()
+{
+  mReverbIRStage.SetBypassed(GetParam(kReverbIRBypass)->Bool());
+  mReverbIRStage.SetWetMix(GetParam(kReverbIRMix)->Value() / 100.0);
+  mReverbIRStage.SetPreDelaySeconds(GetParam(kReverbIRPreDelay)->Value() / 1000.0);
+  mReverbIRStage.SetWetFilterFrequencies(GetParam(kReverbIRLowCut)->Value(), GetParam(kReverbIRHighCut)->Value());
+  mReverbIRStage.SetWetOutputGain(std::pow(10.0, GetParam(kReverbIRWetLevel)->Value() / 20.0));
 }
 
 size_t NeuralAmpModeler::_GetBufferNumChannels() const
