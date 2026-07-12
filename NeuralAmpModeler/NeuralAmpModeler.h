@@ -9,6 +9,7 @@
 #include "../NeuralAmpModelerCore/NAM/slimmable.h"
 
 #include "Colors.h"
+#include "SignalChain.h"
 #include "ToneStack.h"
 
 #include "IPlug_include_in_plug_hdr.h"
@@ -228,6 +229,16 @@ private:
   size_t _GetBufferNumChannels() const;
   size_t _GetBufferNumFrames() const;
   void _InitToneStack();
+  // Signal-chain stage boundaries. The gate detector and gain applicator remain
+  // split around NAM to preserve the current audible behavior.
+  iplug::sample** _ProcessGateTriggerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
+                                           double sampleRate, bool active);
+  iplug::sample** _ProcessNAMStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
+  iplug::sample** _ProcessGateGainStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
+  iplug::sample** _ProcessToneStackStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
+  iplug::sample** _ProcessSpeakerIRStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
+  iplug::sample** _ProcessDCBlockerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
+                                        double sampleRate);
   // Loads a NAM model and stores it to mStagedNAM
   // Returns an empty string on success, or an error message on failure.
   std::string _StageModel(const WDL_String& dspFile);
@@ -309,6 +320,12 @@ private:
 
   // Tone stack modules
   std::unique_ptr<dsp::tone_stack::AbstractToneStack> mToneStack;
+
+  // Neutral integration points for later v0.1 stages. These own no memory and
+  // deliberately return their input buffers unchanged.
+  danger::signal_chain::PreEQStage mPreEQStage;
+  danger::signal_chain::CompressorStage mCompressorStage;
+  danger::signal_chain::ReverbIRStage mReverbIRStage;
 
   // Post-IR filters
   recursive_linear_filter::HighPass mHighPass;

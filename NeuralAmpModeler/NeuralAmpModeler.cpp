@@ -347,51 +347,17 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
   const bool toneStackActive = GetParam(kEQActive)->Value();
 
-  // Noise gate trigger
-  sample** triggerOutput = mInputPointers;
-  if (noiseGateActive)
-  {
-    const double time = 0.01;
-    const double threshold = GetParam(kNoiseGateThreshold)->Value(); // GetParam...
-    const double ratio = 0.1; // Quadratic...
-    const double openTime = 0.005;
-    const double holdTime = 0.01;
-    const double closeTime = 0.05;
-    const dsp::noise_gate::TriggerParams triggerParams(time, threshold, ratio, openTime, holdTime, closeTime);
-    mNoiseGateTrigger.SetParams(triggerParams);
-    mNoiseGateTrigger.SetSampleRate(sampleRate);
-    triggerOutput = mNoiseGateTrigger.Process(mInputPointers, numChannelsInternal, numFrames);
-  }
-
-  if (mModel != nullptr)
-  {
-    mModel->process(triggerOutput, mOutputPointers, nFrames);
-  }
-  else
-  {
-    _FallbackDSP(triggerOutput, mOutputPointers, numChannelsInternal, numFrames);
-  }
-  // Apply the noise gate after the NAM
-  sample** gateGainOutput =
-    noiseGateActive ? mNoiseGateGain.Process(mOutputPointers, numChannelsInternal, numFrames) : mOutputPointers;
-
-  sample** toneStackOutPointers = (toneStackActive && mToneStack != nullptr)
-                                    ? mToneStack->Process(gateGainOutput, numChannelsInternal, nFrames)
-                                    : gateGainOutput;
-
-  sample** irPointers = toneStackOutPointers;
-  if (mIR != nullptr && GetParam(kIRToggle)->Value())
-    irPointers = mIR->Process(toneStackOutPointers, numChannelsInternal, numFrames);
-
-  // And the HPF for DC offset (Issue 271)
-  const double highPassCutoffFreq = kDCBlockerFrequency;
-  // const double lowPassCutoffFreq = 20000.0;
-  const recursive_linear_filter::HighPassParams highPassParams(sampleRate, highPassCutoffFreq);
-  // const recursive_linear_filter::LowPassParams lowPassParams(sampleRate, lowPassCutoffFreq);
-  mHighPass.SetParams(highPassParams);
-  // mLowPass.SetParams(lowPassParams);
-  sample** hpfPointers = mHighPass.Process(irPointers, numChannelsInternal, numFrames);
-  // sample** lpfPointers = mLowPass.Process(hpfPointers, numChannelsInternal, numFrames);
+  sample** gateTriggerOutput =
+    _ProcessGateTriggerStage(mInputPointers, numChannelsInternal, numFrames, sampleRate, noiseGateActive);
+  sample** preEQOutput = mPreEQStage.Process(gateTriggerOutput, numChannelsInternal, numFrames);
+  sample** compressorOutput = mCompressorStage.Process(preEQOutput, numChannelsInternal, numFrames);
+  sample** namOutput = _ProcessNAMStage(compressorOutput, numChannelsInternal, numFrames);
+  sample** gateGainOutput = _ProcessGateGainStage(namOutput, numChannelsInternal, numFrames, noiseGateActive);
+  sample** toneStackOutput =
+    _ProcessToneStackStage(gateGainOutput, numChannelsInternal, numFrames, toneStackActive);
+  sample** speakerIROutput = _ProcessSpeakerIRStage(toneStackOutput, numChannelsInternal, numFrames);
+  sample** reverbIROutput = mReverbIRStage.Process(speakerIROutput, numChannelsInternal, numFrames);
+  sample** hpfPointers = _ProcessDCBlockerStage(reverbIROutput, numChannelsInternal, numFrames, sampleRate);
 
   // restore previous floating point state
   std::feupdateenv(&fe_state);
@@ -403,6 +369,62 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // * Output of input leveling (inputs -> mInputPointers),
   // * Output of output leveling (mOutputPointers -> outputs)
   _UpdateMeters(mInputPointers, outputs, numFrames, numChannelsInternal, numChannelsExternalOut);
+}
+
+sample** NeuralAmpModeler::_ProcessGateTriggerStage(sample** inputs, const size_t numChannels, const size_t numFrames,
+                                                    const double sampleRate, const bool active)
+{
+  if (!active)
+    return inputs;
+
+  const double time = 0.01;
+  const double threshold = GetParam(kNoiseGateThreshold)->Value();
+  const double ratio = 0.1; // Quadratic...
+  const double openTime = 0.005;
+  const double holdTime = 0.01;
+  const double closeTime = 0.05;
+  const dsp::noise_gate::TriggerParams triggerParams(time, threshold, ratio, openTime, holdTime, closeTime);
+  mNoiseGateTrigger.SetParams(triggerParams);
+  mNoiseGateTrigger.SetSampleRate(sampleRate);
+  return mNoiseGateTrigger.Process(inputs, numChannels, numFrames);
+}
+
+sample** NeuralAmpModeler::_ProcessNAMStage(sample** inputs, const size_t numChannels, const size_t numFrames)
+{
+  if (mModel != nullptr)
+    mModel->process(inputs, mOutputPointers, static_cast<int>(numFrames));
+  else
+    _FallbackDSP(inputs, mOutputPointers, numChannels, numFrames);
+
+  return mOutputPointers;
+}
+
+sample** NeuralAmpModeler::_ProcessGateGainStage(sample** inputs, const size_t numChannels, const size_t numFrames,
+                                                 const bool active)
+{
+  return active ? mNoiseGateGain.Process(inputs, numChannels, numFrames) : inputs;
+}
+
+sample** NeuralAmpModeler::_ProcessToneStackStage(sample** inputs, const size_t numChannels, const size_t numFrames,
+                                                  const bool active)
+{
+  return (active && mToneStack != nullptr)
+           ? mToneStack->Process(inputs, static_cast<int>(numChannels), static_cast<int>(numFrames))
+           : inputs;
+}
+
+sample** NeuralAmpModeler::_ProcessSpeakerIRStage(sample** inputs, const size_t numChannels, const size_t numFrames)
+{
+  return (mIR != nullptr && GetParam(kIRToggle)->Value()) ? mIR->Process(inputs, numChannels, numFrames) : inputs;
+}
+
+sample** NeuralAmpModeler::_ProcessDCBlockerStage(sample** inputs, const size_t numChannels, const size_t numFrames,
+                                                  const double sampleRate)
+{
+  // HPF for DC offset (Issue 271).
+  const recursive_linear_filter::HighPassParams highPassParams(sampleRate, kDCBlockerFrequency);
+  mHighPass.SetParams(highPassParams);
+  return mHighPass.Process(inputs, numChannels, numFrames);
 }
 
 void NeuralAmpModeler::OnReset()
