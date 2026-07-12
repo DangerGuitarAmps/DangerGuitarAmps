@@ -50,8 +50,11 @@ const IVStyle style =
           DEFAULT_SHADOW_OFFSET,
           DEFAULT_WIDGET_FRAC,
           DEFAULT_WIDGET_ANGLE};
-const IVStyle titleStyle =
-  DEFAULT_STYLE.WithValueText(IText(30, COLOR_WHITE, "Michroma-Regular")).WithDrawFrame(false).WithShadowOffset(2.f);
+const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(27, PluginColors::OFF_WHITE, "Michroma-Regular"))
+                             .WithDrawFrame(false)
+                             .WithShadowOffset(1.f);
+const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(10, PluginColors::NAM_3, "Roboto-Regular"))
+                                   .WithDrawFrame(false);
 const IVStyle radioButtonStyle =
   style
     .WithColor(EVColor::kON, PluginColors::NAM_THEMECOLOR) // Pressed buttons and their labels
@@ -128,11 +131,11 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto irIconOnSVG = pGraphics->LoadSVG(IR_ICON_ON_FN);
     const auto irIconOffSVG = pGraphics->LoadSVG(IR_ICON_OFF_FN);
     const auto slimIconSVG = pGraphics->LoadSVG(SLIMMABLE_ICON_FN);
+    const auto dangerLogoSVG = pGraphics->LoadSVG(DANGER_LOGO_FN);
+    const auto dangerBackgroundSVG = pGraphics->LoadSVG(DANGER_BACKGROUND_FN);
 
-    const auto backgroundBitmap = pGraphics->LoadBitmap(BACKGROUND_FN);
     const auto fileBackgroundBitmap = pGraphics->LoadBitmap(FILEBACKGROUND_FN);
     const auto inputLevelBackgroundBitmap = pGraphics->LoadBitmap(INPUTLEVELBACKGROUND_FN);
-    const auto linesBitmap = pGraphics->LoadBitmap(LINES_FN);
     const auto knobBackgroundBitmap = pGraphics->LoadBitmap(KNOBBACKGROUND_FN);
     const auto switchHandleBitmap = pGraphics->LoadBitmap(SLIDESWITCHHANDLE_FN);
     const auto meterBackgroundBitmap = pGraphics->LoadBitmap(METERBACKGROUND_FN);
@@ -140,12 +143,15 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto b = pGraphics->GetBounds();
     const auto mainArea = b.GetPadded(-20);
     const auto contentArea = mainArea.GetPadded(-10);
-    const auto titleHeight = 50.0f;
+    const auto titleHeight = 62.0f;
     const auto titleArea = contentArea.GetFromTop(titleHeight);
+    const auto logoArea = titleArea.GetFromLeft(44.0f).GetCentredInside(36.0f, 32.0f);
+    const auto productTitleArea = titleArea.GetReducedFromLeft(48.0f).GetFromTop(38.0f);
+    const auto productLegendArea = titleArea.GetReducedFromLeft(48.0f).GetFromBottom(17.0f);
 
     // Areas for knobs
     const auto knobsPad = 20.0f;
-    const auto knobsExtraSpaceBelowTitle = 25.0f;
+    const auto knobsExtraSpaceBelowTitle = 13.0f;
     const auto singleKnobPad = -2.0f;
     const auto knobsArea = contentArea.GetFromTop(NAM_KNOB_HEIGHT)
                              .GetReducedFromLeft(knobsPad)
@@ -215,9 +221,11 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       }
     };
 
-    pGraphics->AttachBackground(BACKGROUND_FN);
-    pGraphics->AttachControl(new IBitmapControl(b, linesBitmap));
-    pGraphics->AttachControl(new IVLabelControl(titleArea, "NEURAL AMP MODELER", titleStyle));
+    pGraphics->AttachControl(new ISVGControl(b, dangerBackgroundSVG));
+    pGraphics->AttachControl(new ISVGControl(logoArea, dangerLogoSVG));
+    pGraphics->AttachControl(new IVLabelControl(productTitleArea, "DANGER GUITAR AMPS", titleStyle));
+    pGraphics->AttachControl(
+      new IVLabelControl(productLegendArea, "MODEL AMPLIFIER  //  IMPULSE CABINET", shellLegendStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
 
 #ifdef NAM_PICK_DIRECTORY
@@ -292,7 +300,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       gearSVG));
 
     pGraphics
-      ->AttachControl(new NAMSettingsPageControl(b, backgroundBitmap, inputLevelBackgroundBitmap, switchHandleBitmap,
+      ->AttachControl(new NAMSettingsPageControl(b, dangerBackgroundSVG, inputLevelBackgroundBitmap, switchHandleBitmap,
                                                  crossSVG, style, radioButtonStyle),
                       kCtrlTagSettingsBox)
       ->Hide(true);

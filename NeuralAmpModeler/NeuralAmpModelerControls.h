@@ -682,12 +682,12 @@ public:
 class NAMSettingsPageControl : public IContainerBaseWithNamedChildren
 {
 public:
-  NAMSettingsPageControl(const IRECT& bounds, const IBitmap& bitmap, const IBitmap& inputLevelBackgroundBitmap,
+  NAMSettingsPageControl(const IRECT& bounds, const ISVG& backgroundSVG, const IBitmap& inputLevelBackgroundBitmap,
                          const IBitmap& switchBitmap, ISVG closeSVG, const IVStyle& style,
                          const IVStyle& radioButtonStyle)
   : IContainerBaseWithNamedChildren(bounds)
   , mAnimationTime(0)
-  , mBitmap(bitmap)
+  , mBackgroundSVG(backgroundSVG)
   , mInputLevelBackgroundBitmap(inputLevelBackgroundBitmap)
   , mSwitchBitmap(switchBitmap)
   , mStyle(style)
@@ -761,7 +761,7 @@ public:
     const auto style = mStyle.WithDrawFrame(false).WithValueText(text);
     const IVStyle leftStyle = style.WithValueText(leftText);
 
-    AddNamedChildControl(new IBitmapControl(GetRECT(), mBitmap), mControlNames.bitmap)->SetIgnoreMouse(true);
+    AddNamedChildControl(new ISVGControl(GetRECT(), mBackgroundSVG), mControlNames.bitmap)->SetIgnoreMouse(true);
     const auto titleArea = GetRECT().GetPadded(-(pad + 10.0f)).GetFromTop(50.0f);
     AddNamedChildControl(new IVLabelControl(titleArea, "SETTINGS", titleStyle), mControlNames.title);
 
@@ -825,7 +825,7 @@ public:
   };
 
 private:
-  IBitmap mBitmap;
+  ISVG mBackgroundSVG;
   IBitmap mInputLevelBackgroundBitmap;
   IBitmap mSwitchBitmap;
   IVStyle mStyle;

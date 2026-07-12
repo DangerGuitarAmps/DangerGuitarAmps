@@ -69,6 +69,8 @@
 #define IR_ICON_OFF_FN "IRIconOff.svg"
 #define GLOBE_ICON_FN "Globe.svg"
 #define SLIMMABLE_ICON_FN "SlimmableIcon.svg"
+#define DANGER_LOGO_FN "DangerLogo.svg"
+#define DANGER_BACKGROUND_FN "DangerRackBackground.svg"
 
 #define BACKGROUND_FN "Background.jpg"
 #define BACKGROUND2X_FN "Background@2x.jpg"
