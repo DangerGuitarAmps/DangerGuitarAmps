@@ -1,15 +1,15 @@
-#define PLUG_NAME "NeuralAmpModeler"
-#define PLUG_MFR "Steven Atkinson"
+#define PLUG_NAME "Danger Guitar Amps"
+#define PLUG_MFR "Danger Audio"
 #define PLUG_VERSION_HEX 0x0000070f
 #define PLUG_VERSION_STR "0.7.15"
-#define PLUG_UNIQUE_ID '1YEo'
-#define PLUG_MFR_ID 'SDAa'
+#define PLUG_UNIQUE_ID 'DGAm'
+#define PLUG_MFR_ID 'DnGA'
 #define PLUG_URL_STR "https://github.com/sdatkinson/NeuralAmpModelerPlugin"
 #define PLUG_EMAIL_STR "spam@me.com"
-#define PLUG_COPYRIGHT_STR "Copyright 2022 Steven Atkinson"
+#define PLUG_COPYRIGHT_STR "Copyright 2026 Danger Audio"
 #define PLUG_CLASS_NAME NeuralAmpModeler
-#define BUNDLE_NAME "NeuralAmpModeler"
-#define BUNDLE_MFR "StevenAtkinson"
+#define BUNDLE_NAME "DangerGuitarAmps"
+#define BUNDLE_MFR "DangerAudio"
 #define BUNDLE_DOMAIN "com"
 
 #define SHARED_RESOURCES_SUBPATH "NeuralAmpModeler"
