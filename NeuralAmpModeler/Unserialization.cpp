@@ -68,9 +68,13 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
   }
   if (mReverbIRPath.GetLength())
   {
-    // A missing or unsupported Reverb IR is non-fatal. _StageReverbIR()
-    // requests a safe engine clear and internal bypass on failure.
-    _StageReverbIR(mReverbIRPath);
+    // A missing or unsupported Reverb IR is non-fatal. State restoration
+    // explicitly clears and bypasses the engine on failure.
+    if (_StageReverbIR(mReverbIRPath) != dsp::wav::LoadReturnCode::SUCCESS)
+    {
+      mReverbIRStage.RequestClear();
+      mReverbIRStage.SetBypassed(true);
+    }
   }
   else
   {

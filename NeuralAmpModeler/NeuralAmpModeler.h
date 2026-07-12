@@ -73,6 +73,7 @@ enum ECtrlTags
   kCtrlTagSlimmableIcon,
   kCtrlTagSlimOverlayBackdrop,
   kCtrlTagSlimKnob,
+  kCtrlTagReverbIRFileBrowser,
   kNumCtrlTags
 };
 
@@ -81,11 +82,13 @@ enum EMsgTags
   // These tags are used from UI -> DSP
   kMsgTagClearModel = 0,
   kMsgTagClearIR,
+  kMsgTagClearReverbIR,
   kMsgTagHighlightColor,
   // The following tags are from DSP -> UI
   kMsgTagLoadFailed,
   kMsgTagLoadedModel,
   kMsgTagLoadedIR,
+  kMsgTagLoadedReverbIR,
   kNumMsgTags
 };
 
@@ -346,6 +349,7 @@ private:
   WDL_String mIRPath;
   // Reverb IR is independent from the existing Speaker IR.
   WDL_String mReverbIRPath;
+  std::atomic<bool> mReverbIRLoadFailed = false;
 
   WDL_String mHighLightColor{PluginColors::NAM_THEMECOLOR.ToColorCode()};
 

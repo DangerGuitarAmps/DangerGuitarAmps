@@ -55,6 +55,8 @@ const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(27, PluginColors::O
                              .WithShadowOffset(1.f);
 const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(10, PluginColors::NAM_3, "Roboto-Regular"))
                                    .WithDrawFrame(false);
+const IVStyle reverbControlStyle =
+  style.WithLabelText(style.labelText.WithSize(13.f)).WithValueText(style.valueText.WithSize(13.f));
 const IVStyle radioButtonStyle =
   style
     .WithColor(EVColor::kON, PluginColors::NAM_THEMECOLOR) // Pressed buttons and their labels
@@ -177,19 +179,32 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
     // Areas for model and IR
     const auto fileWidth = 200.0f;
-    const auto fileHeight = 30.0f;
     const auto irYOffset = 38.0f;
-    const auto modelArea =
-      contentArea.GetFromBottom((2.0f * fileHeight)).GetFromTop(fileHeight).GetMidHPadded(fileWidth).GetVShifted(-1);
+    // Keep the original 600x400 shell geometry anchored while the Reverb IR
+    // section uses the expanded lower portion of the window.
+    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 309.0f, b.MW() + fileWidth * 0.5f, 339.0f);
     const auto slimIconArea =
       IRECT(modelArea.R + 6.f, modelArea.MH() - 14.f, modelArea.R + 6.f + 2.f * 28.f, modelArea.MH() + 14.f);
     const auto modelIconArea = modelArea.GetFromLeft(30).GetTranslated(-40, 10);
     const auto irArea = modelArea.GetVShifted(irYOffset);
     const auto irSwitchArea = irArea.GetFromLeft(30.0f).GetHShifted(-40.0f).GetScaledAboutCentre(0.6f);
 
+    // Compact Reverb IR panel. Render and hit rectangles use the same logical
+    // bounds so scale-mode resizing preserves alignment.
+    const auto reverbSectionArea = IRECT(45.0f, 390.0f, b.R - 45.0f, 562.0f);
+    const auto reverbTitleArea = reverbSectionArea.GetFromTop(18.0f);
+    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 410.0f, b.MW() + 100.0f, 440.0f);
+    const auto reverbBypassArea = IRECT(55.0f, 408.0f, 165.0f, 448.0f);
+    const auto reverbKnobsArea = IRECT(85.0f, 442.0f, b.R - 85.0f, 562.0f);
+    const auto reverbMixArea = reverbKnobsArea.GetGridCell(0, 0, 1, 5);
+    const auto reverbPreDelayArea = reverbKnobsArea.GetGridCell(0, 1, 1, 5);
+    const auto reverbLowCutArea = reverbKnobsArea.GetGridCell(0, 2, 1, 5);
+    const auto reverbHighCutArea = reverbKnobsArea.GetGridCell(0, 3, 1, 5);
+    const auto reverbWetLevelArea = reverbKnobsArea.GetGridCell(0, 4, 1, 5);
+
     // Areas for meters
-    const auto inputMeterArea = contentArea.GetFromLeft(30).GetHShifted(-20).GetMidVPadded(100).GetVShifted(-25);
-    const auto outputMeterArea = contentArea.GetFromRight(30).GetHShifted(20).GetMidVPadded(100).GetVShifted(-25);
+    const auto inputMeterArea = IRECT(10.0f, 75.0f, 40.0f, 275.0f);
+    const auto outputMeterArea = IRECT(b.R - 40.0f, 75.0f, b.R - 10.0f, 275.0f);
 
     // Misc Areas
     const auto settingsButtonArea = CornerButtonArea(b);
@@ -228,6 +243,38 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       }
     };
 
+    auto loadReverbIRCompletionHandler = [&](const WDL_String& fileName, const WDL_String& path) {
+      if (!fileName.GetLength())
+        return;
+
+      const WDL_String previousReverbIRPath(mReverbIRPath);
+      const dsp::wav::LoadReturnCode retCode = _StageReverbIR(fileName);
+      if (retCode == dsp::wav::LoadReturnCode::SUCCESS)
+      {
+        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR,
+                                   mReverbIRPath.GetLength(), mReverbIRPath.Get());
+        return;
+      }
+
+      std::stringstream message;
+      message << "Failed to load Reverb IR file " << fileName.Get() << ":\n";
+      message << dsp::wav::GetMsgForLoadReturnCode(retCode);
+      _ShowMessageBox(GetUI(), message.str().c_str(), "Failed to load Reverb IR!", kMB_OK);
+
+      // Candidate validation failed before exchange, so keep the previous IR
+      // active and restore its filename in the browser.
+      if (previousReverbIRPath.GetLength())
+      {
+        mReverbIRLoadFailed = false;
+        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR,
+                                   previousReverbIRPath.GetLength(), previousReverbIRPath.Get());
+      }
+      else
+      {
+        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadFailed);
+      }
+    };
+
     pGraphics->AttachControl(new ISVGControl(b, dangerBackgroundSVG));
     pGraphics->AttachControl(new ISVGControl(logoArea, dangerLogoSVG));
     pGraphics->AttachControl(new IVLabelControl(productTitleArea, "DANGER GUITAR AMPS", titleStyle));
@@ -242,6 +289,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const std::string defaultNamFileString = "Select model...";
     const std::string defaultIRString = "Select IR...";
 #endif
+    const std::string defaultReverbIRString = "No Reverb IR Loaded";
     // Getting started page listing additional resources
     const char* const getUrl = "https://www.neuralampmodeler.com/users#comp-marb84o5";
     pGraphics->AttachControl(
@@ -279,6 +327,15 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                                 fileSVG, crossSVG, leftArrowSVG, rightArrowSVG, fileBackgroundBitmap, globeSVG,
                                 "Get IRs", getUrl),
       kCtrlTagIRFileBrowser);
+    pGraphics->AttachControl(new IVLabelControl(reverbTitleArea, "REVERB IR", shellLegendStyle));
+    pGraphics->AttachControl(
+      new NAMFileBrowserControl(reverbBrowserArea, kMsgTagClearReverbIR, defaultReverbIRString.c_str(), "wav",
+                                loadReverbIRCompletionHandler, style, fileSVG, crossSVG, leftArrowSVG, rightArrowSVG,
+                                fileBackgroundBitmap, globeSVG, "Get IRs", getUrl),
+      kCtrlTagReverbIRFileBrowser);
+    pGraphics->AttachControl(
+      new NAMSwitchControl(reverbBypassArea, kReverbIRBypass, "Bypass = Dry", reverbControlStyle,
+                           switchHandleBitmap));
     pGraphics->AttachControl(
       new NAMSwitchControl(ngToggleArea, kNoiseGateActive, "Noise Gate", style, switchHandleBitmap));
     pGraphics->AttachControl(new NAMSwitchControl(eqToggleArea, kEQActive, "EQ", style, switchHandleBitmap));
@@ -293,6 +350,24 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     pGraphics->AttachControl(
       new NAMKnobControl(trebleKnobArea, kToneTreble, "", style, knobBackgroundBitmap), -1, "EQ_KNOBS");
     pGraphics->AttachControl(new NAMKnobControl(outputKnobArea, kOutputLevel, "", style, knobBackgroundBitmap));
+    pGraphics->AttachControl(
+      new NAMKnobControl(reverbMixArea, kReverbIRMix, "Mix", reverbControlStyle, knobBackgroundBitmap), -1,
+      "REVERB_CONTROLS");
+    pGraphics->AttachControl(new NAMKnobControl(reverbPreDelayArea, kReverbIRPreDelay, "Pre-delay", reverbControlStyle,
+                                                knobBackgroundBitmap),
+                             -1, "REVERB_CONTROLS");
+    pGraphics->AttachControl(new NAMKnobControl(reverbLowCutArea, kReverbIRLowCut, "Low cut", reverbControlStyle,
+                                                knobBackgroundBitmap),
+                             -1, "REVERB_CONTROLS");
+    pGraphics->AttachControl(new NAMKnobControl(reverbHighCutArea, kReverbIRHighCut, "High cut", reverbControlStyle,
+                                                knobBackgroundBitmap),
+                             -1, "REVERB_CONTROLS");
+    pGraphics->AttachControl(new NAMKnobControl(reverbWetLevelArea, kReverbIRWetLevel, "Wet level", reverbControlStyle,
+                                                knobBackgroundBitmap),
+                             -1, "REVERB_CONTROLS");
+    const bool reverbBypassed = GetParam(kReverbIRBypass)->Bool();
+    pGraphics->ForControlInGroup("REVERB_CONTROLS",
+                                 [reverbBypassed](IControl* pControl) { pControl->SetDisabled(reverbBypassed); });
 
     // The meters
     pGraphics->AttachControl(new NAMMeterControl(inputMeterArea, meterBackgroundBitmap, style), kCtrlTagInputMeter);
@@ -539,6 +614,14 @@ void NeuralAmpModeler::OnUIOpen()
       SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed);
   }
 
+  if (mReverbIRPath.GetLength())
+  {
+    SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR, mReverbIRPath.GetLength(),
+                               mReverbIRPath.Get());
+    if (mReverbIRLoadFailed)
+      SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadFailed);
+  }
+
   if (mModel != nullptr)
   {
     _UpdateControlsFromModel();
@@ -584,6 +667,10 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
         pGraphics->ForControlInGroup("EQ_KNOBS", [active](IControl* pControl) { pControl->SetDisabled(!active); });
         break;
       case kIRToggle: pGraphics->GetControlWithTag(kCtrlTagIRFileBrowser)->SetDisabled(!active); break;
+      case kReverbIRBypass:
+        pGraphics->ForControlInGroup("REVERB_CONTROLS",
+                                     [active](IControl* pControl) { pControl->SetDisabled(active); });
+        break;
       default: break;
     }
   }
@@ -595,6 +682,11 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
   {
     case kMsgTagClearModel: mShouldRemoveModel = true; return true;
     case kMsgTagClearIR: mShouldRemoveIR = true; return true;
+    case kMsgTagClearReverbIR:
+      mReverbIRPath.Set("");
+      mReverbIRLoadFailed = false;
+      mReverbIRStage.RequestClear();
+      return true;
     case kMsgTagHighlightColor:
     {
       mHighLightColor.Set((const char*)pData);
@@ -877,21 +969,24 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageReverbIR(const WDL_String& irPa
   if (result == dsp::wav::LoadReturnCode::SUCCESS)
   {
     mReverbIRPath = irPath;
+    mReverbIRLoadFailed = false;
     _ApplyReverbIRParams();
   }
   else
   {
-    mReverbIRStage.RequestClear();
-    mReverbIRStage.SetBypassed(true);
+    mReverbIRLoadFailed = true;
   }
   return result;
 }
 
 void NeuralAmpModeler::_ApplyReverbIRParams()
 {
-  mReverbIRStage.SetBypassed(GetParam(kReverbIRBypass)->Bool());
-  mReverbIRStage.SetWetMix(GetParam(kReverbIRMix)->Value() / 100.0);
-  mReverbIRStage.SetPreDelaySeconds(GetParam(kReverbIRPreDelay)->Value() / 1000.0);
+  const bool bypassed = GetParam(kReverbIRBypass)->Bool();
+  const double wetMix = GetParam(kReverbIRMix)->Value() * 0.01;
+  const double preDelaySeconds = GetParam(kReverbIRPreDelay)->Value() * 0.001;
+  mReverbIRStage.SetBypassed(bypassed);
+  mReverbIRStage.SetWetMix(wetMix);
+  mReverbIRStage.SetPreDelaySeconds(preDelaySeconds);
   mReverbIRStage.SetWetFilterFrequencies(GetParam(kReverbIRLowCut)->Value(), GetParam(kReverbIRHighCut)->Value());
   mReverbIRStage.SetWetOutputGain(std::pow(10.0, GetParam(kReverbIRWetLevel)->Value() / 20.0));
 }

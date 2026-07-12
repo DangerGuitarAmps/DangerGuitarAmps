@@ -45,10 +45,16 @@ public:
 
   dsp::wav::LoadReturnCode StageFile(const char* fileName, const double sampleRate, const std::size_t maxBlockSize)
   {
+    std::size_t preparedBlockSize = std::max<std::size_t>(maxBlockSize, 1);
+    {
+      std::lock_guard<std::mutex> lock(mExchangeMutex);
+      preparedBlockSize = std::max(preparedBlockSize, mMaxBlockSize);
+    }
+
     std::unique_ptr<State> candidate;
     try
     {
-      candidate = std::make_unique<State>(fileName, sampleRate, maxBlockSize);
+      candidate = std::make_unique<State>(fileName, sampleRate, preparedBlockSize);
     }
     catch (...)
     {
@@ -118,7 +124,7 @@ public:
     State* state = mActive.get();
     const double wetMix = mWetMix.load(std::memory_order_relaxed);
     if (mBypassed.load(std::memory_order_relaxed) || wetMix <= 0.0 || state == nullptr || numChannels == 0
-        || numFrames == 0 || numFrames > state->mMaxBlockSize)
+        || numChannels > state->mOutputPointers.size() || numFrames == 0 || numFrames > state->mMaxBlockSize)
       return inputs;
 
     if (mFilterSettingsChanged.exchange(false, std::memory_order_acq_rel))
@@ -161,6 +167,9 @@ public:
     for (std::size_t frame = 0; frame < numFrames; ++frame)
       state->mOutput[frame] = dryMix * state->mMonoInput[frame] + wetMix * wetGain * wet[0][frame];
 
+    // The plug-in is internally mono. If a two-channel caller is introduced,
+    // expose the same processed mono return on both channels rather than an
+    // invalid one-element pointer array.
     return state->mOutputPointers.data();
   }
 
@@ -211,7 +220,7 @@ private:
       mOutput.resize(mMaxBlockSize);
       mDelayLine.resize(static_cast<std::size_t>(kMaximumPreDelaySeconds * mSampleRate) + 1);
       mPreDelayPointers = {mPreDelayed.data()};
-      mOutputPointers = {mOutput.data()};
+      mOutputPointers = {mOutput.data(), mOutput.data()};
 
       recursive_linear_filter::HighPassParams lowCutParams(mSampleRate, 20.0);
       recursive_linear_filter::LowPassParams highCutParams(mSampleRate, 20000.0);

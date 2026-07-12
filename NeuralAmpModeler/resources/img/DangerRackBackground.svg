@@ -1,7 +1,7 @@
-<!-- Placeholder vector chassis. Final artwork should replace this file without changing its 600x400 view box. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="none">
+<!-- Placeholder vector chassis. Final artwork should replace this file without changing its 600x580 view box. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="580" viewBox="0 0 600 580" fill="none">
   <defs>
-    <linearGradient id="chassis" x1="0" y1="0" x2="0" y2="400" gradientUnits="userSpaceOnUse">
+    <linearGradient id="chassis" x1="0" y1="0" x2="0" y2="580" gradientUnits="userSpaceOnUse">
       <stop stop-color="#242522"/>
       <stop offset="0.48" stop-color="#151615"/>
       <stop offset="1" stop-color="#0D0E0D"/>
@@ -12,17 +12,19 @@
       <stop offset="1" stop-color="#090A09"/>
     </linearGradient>
   </defs>
-  <rect width="600" height="400" fill="#090A09"/>
-  <rect x="8" y="8" width="584" height="384" rx="5" fill="url(#chassis)" stroke="#55564F" stroke-width="2"/>
+  <rect width="600" height="580" fill="#090A09"/>
+  <rect x="8" y="8" width="584" height="564" rx="5" fill="url(#chassis)" stroke="#55564F" stroke-width="2"/>
   <rect x="20" y="20" width="560" height="55" rx="2" fill="#111210" stroke="#3E3F3A"/>
   <rect x="20" y="82" width="560" height="196" rx="3" fill="#171816" stroke="#3A3B36"/>
   <rect x="20" y="286" width="560" height="94" rx="3" fill="#111210" stroke="#3A3B36"/>
+  <rect x="20" y="388" width="560" height="172" rx="3" fill="#111210" stroke="#3A3B36"/>
+  <rect x="22" y="386" width="556" height="3" fill="#B1251F"/>
   <rect x="22" y="80" width="556" height="3" fill="#B1251F"/>
-  <rect x="0" y="0" width="9" height="400" fill="url(#rail)"/>
-  <rect x="591" y="0" width="9" height="400" fill="url(#rail)"/>
+  <rect x="0" y="0" width="9" height="580" fill="url(#rail)"/>
+  <rect x="591" y="0" width="9" height="580" fill="url(#rail)"/>
   <g fill="#090A09" stroke="#77786F">
     <circle cx="17" cy="17" r="4"/><circle cx="583" cy="17" r="4"/>
-    <circle cx="17" cy="383" r="4"/><circle cx="583" cy="383" r="4"/>
+    <circle cx="17" cy="563" r="4"/><circle cx="583" cy="563" r="4"/>
   </g>
   <g stroke="#2B2C29" stroke-width="1">
     <path d="M30 271H570"/><path d="M30 289H570"/>
