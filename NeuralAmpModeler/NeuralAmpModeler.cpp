@@ -106,6 +106,13 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kReverbIRHighCut)->InitDouble("ReverbIRHighCut", 20000.0, 1000.0, 20000.0, 1.0, "Hz");
   GetParam(kReverbIRWetLevel)->InitGain("ReverbIRWetLevel", 0.0, -24.0, 12.0, 0.1);
   _ApplyReverbIRParams();
+  GetParam(kPreEQBypass)->InitBool("PreEQBypass", true);
+  GetParam(kPreEQLowCut)->InitDouble("PreEQLowCut", 120.0, 20.0, 300.0, 1.0, "Hz");
+  GetParam(kPreEQLowShelfGain)->InitGain("PreEQLowShelfGain", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kPreEQMidGain)->InitGain("PreEQMidGain", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kPreEQMidFrequency)->InitDouble("PreEQMidFrequency", 800.0, 150.0, 4000.0, 1.0, "Hz");
+  GetParam(kPreEQHighShelfGain)->InitGain("PreEQHighShelfGain", 0.0, -12.0, 12.0, 0.1);
+  _ApplyPreEQParams();
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
@@ -651,6 +658,12 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kReverbIRLowCut:
     case kReverbIRHighCut:
     case kReverbIRWetLevel: _ApplyReverbIRParams(); break;
+    case kPreEQBypass:
+    case kPreEQLowCut:
+    case kPreEQLowShelfGain:
+    case kPreEQMidGain:
+    case kPreEQMidFrequency:
+    case kPreEQHighShelfGain: _ApplyPreEQParams(); break;
     default: break;
   }
 }
@@ -790,7 +803,7 @@ void NeuralAmpModeler::_FallbackDSP(iplug::sample** inputs, iplug::sample** outp
 {
   for (auto c = 0; c < numChannels; c++)
     for (auto s = 0; s < numFrames; s++)
-      mOutputArray[c][s] = mInputArray[c][s];
+      outputs[c][s] = inputs[c][s];
 }
 
 void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBlockSize)
@@ -990,6 +1003,15 @@ void NeuralAmpModeler::_ApplyReverbIRParams()
   mReverbIRStage.SetPreDelaySeconds(preDelaySeconds);
   mReverbIRStage.SetWetFilterFrequencies(GetParam(kReverbIRLowCut)->Value(), GetParam(kReverbIRHighCut)->Value());
   mReverbIRStage.SetWetOutputGain(std::pow(10.0, GetParam(kReverbIRWetLevel)->Value() / 20.0));
+}
+
+void NeuralAmpModeler::_ApplyPreEQParams()
+{
+  mPreEQStage.SetBypassed(GetParam(kPreEQBypass)->Bool());
+  mPreEQStage.SetHighPassFrequency(GetParam(kPreEQLowCut)->Value());
+  mPreEQStage.SetLowShelfGain(GetParam(kPreEQLowShelfGain)->Value());
+  mPreEQStage.SetMid(GetParam(kPreEQMidGain)->Value(), GetParam(kPreEQMidFrequency)->Value());
+  mPreEQStage.SetHighShelfGain(GetParam(kPreEQHighShelfGain)->Value());
 }
 
 size_t NeuralAmpModeler::_GetBufferNumChannels() const

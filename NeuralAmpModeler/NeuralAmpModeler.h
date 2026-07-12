@@ -55,6 +55,13 @@ enum EParams
   kReverbIRLowCut,
   kReverbIRHighCut,
   kReverbIRWetLevel,
+  // Pre-EQ parameters must remain appended for session compatibility.
+  kPreEQBypass,
+  kPreEQLowCut,
+  kPreEQLowShelfGain,
+  kPreEQMidGain,
+  kPreEQMidFrequency,
+  kPreEQHighShelfGain,
   kNumParams
 };
 
@@ -279,6 +286,7 @@ private:
   void _SetOutputGain();
   void _ApplySlimParamToLoadedNAMs();
   void _ApplyReverbIRParams();
+  void _ApplyPreEQParams();
 
   // See: Unserialization.cpp
   void _UnserializeApplyConfig(nlohmann::json& config);

@@ -47,17 +47,18 @@ public:
   {
     mSampleRate = std::max(sampleRate, 1.0);
     mMaxBlockSize = std::max<std::size_t>(maxBlockSize, 1);
-    for (auto& channel : mBufferA)
-      channel.resize(mMaxBlockSize);
-    for (auto& channel : mBufferB)
+    for (auto& channel : mOutput)
       channel.resize(mMaxBlockSize);
     for (std::size_t channel = 0; channel < kMaximumChannels; ++channel)
-    {
-      mBufferAPointers[channel] = mBufferA[channel].data();
-      mBufferBPointers[channel] = mBufferB[channel].data();
-    }
+      mOutputPointers[channel] = mOutput[channel].data();
+    mSmoothingCoefficient = 1.0 - std::exp(-1.0 / (0.02 * mSampleRate));
     Reset();
-    UpdateCoefficients();
+    UpdateCoefficientTargets();
+    mHighPass.SnapToTarget();
+    mLowShelf.SnapToTarget();
+    mMid.SnapToTarget();
+    mHighShelf.SnapToTarget();
+    mProcessedMix = mBypassed.load(std::memory_order_relaxed) ? 0.0 : 1.0;
   }
 
   void Reset() noexcept
@@ -70,38 +71,54 @@ public:
 
   double** Process(double** inputs, const std::size_t numChannels, const std::size_t numFrames) noexcept
   {
-    if (mBypassed || numChannels == 0 || numChannels > kMaximumChannels || numFrames == 0
-        || numFrames > mMaxBlockSize)
+    if (numChannels == 0 || numChannels > kMaximumChannels || numFrames == 0 || numFrames > mMaxBlockSize)
       return inputs;
 
-    ProcessFilter(mHighPass, inputs, mBufferAPointers.data(), numChannels, numFrames);
-    ProcessFilter(mLowShelf, mBufferAPointers.data(), mBufferBPointers.data(), numChannels, numFrames);
-    ProcessFilter(mMid, mBufferBPointers.data(), mBufferAPointers.data(), numChannels, numFrames);
-    ProcessFilter(mHighShelf, mBufferAPointers.data(), mBufferBPointers.data(), numChannels, numFrames);
-    return mBufferBPointers.data();
+    const double targetMix = mBypassed.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+    for (std::size_t frame = 0; frame < numFrames; ++frame)
+    {
+      mHighPass.AdvanceCoefficients(mSmoothingCoefficient);
+      mLowShelf.AdvanceCoefficients(mSmoothingCoefficient);
+      mMid.AdvanceCoefficients(mSmoothingCoefficient);
+      mHighShelf.AdvanceCoefficients(mSmoothingCoefficient);
+      mProcessedMix += mSmoothingCoefficient * (targetMix - mProcessedMix);
+      if (std::abs(targetMix - mProcessedMix) < 1.0e-9)
+        mProcessedMix = targetMix;
+
+      for (std::size_t channel = 0; channel < numChannels; ++channel)
+      {
+        const double dry = inputs[channel][frame];
+        double processed = mHighPass.ProcessSample(dry, channel);
+        processed = mLowShelf.ProcessSample(processed, channel);
+        processed = mMid.ProcessSample(processed, channel);
+        processed = mHighShelf.ProcessSample(processed, channel);
+        mOutput[channel][frame] = dry + mProcessedMix * (processed - dry);
+      }
+    }
+    return mOutputPointers.data();
   }
 
-  void SetBypassed(const bool bypassed) noexcept { mBypassed = bypassed; }
+  void SetBypassed(const bool bypassed) noexcept { mBypassed.store(bypassed, std::memory_order_relaxed); }
   void SetHighPassFrequency(const double frequencyHz) noexcept
   {
-    mHighPassFrequency = std::clamp(frequencyHz, 20.0, 300.0);
-    UpdateCoefficients();
+    mHighPassFrequency.store(std::clamp(frequencyHz, 20.0, 300.0), std::memory_order_relaxed);
+    UpdateCoefficientTargets();
   }
   void SetLowShelfGain(const double gainDB) noexcept
   {
-    mLowShelfGain = std::clamp(gainDB, -12.0, 12.0);
-    UpdateCoefficients();
+    mLowShelfGain.store(std::clamp(gainDB, -12.0, 12.0), std::memory_order_relaxed);
+    UpdateCoefficientTargets();
   }
   void SetMid(const double gainDB, const double frequencyHz) noexcept
   {
-    mMidGain = std::clamp(gainDB, -12.0, 12.0);
-    mMidFrequency = std::clamp(frequencyHz, 150.0, 4000.0);
-    UpdateCoefficients();
+    mMidGain.store(std::clamp(gainDB, -12.0, 12.0), std::memory_order_relaxed);
+    mMidFrequency.store(std::clamp(frequencyHz, 150.0, 4000.0), std::memory_order_relaxed);
+    UpdateCoefficientTargets();
   }
   void SetHighShelfGain(const double gainDB) noexcept
   {
-    mHighShelfGain = std::clamp(gainDB, -12.0, 12.0);
-    UpdateCoefficients();
+    mHighShelfGain.store(std::clamp(gainDB, -12.0, 12.0), std::memory_order_relaxed);
+    UpdateCoefficientTargets();
   }
 
 private:
@@ -110,11 +127,29 @@ private:
     void SetCoefficients(const double nb0, const double nb1, const double nb2, const double na0, const double na1,
                          const double na2) noexcept
     {
-      b0 = nb0 / na0;
-      b1 = nb1 / na0;
-      b2 = nb2 / na0;
-      a1 = na1 / na0;
-      a2 = na2 / na0;
+      targetB0.store(nb0 / na0, std::memory_order_relaxed);
+      targetB1.store(nb1 / na0, std::memory_order_relaxed);
+      targetB2.store(nb2 / na0, std::memory_order_relaxed);
+      targetA1.store(na1 / na0, std::memory_order_relaxed);
+      targetA2.store(na2 / na0, std::memory_order_relaxed);
+    }
+
+    void AdvanceCoefficients(const double smoothingCoefficient) noexcept
+    {
+      b0 += smoothingCoefficient * (targetB0.load(std::memory_order_relaxed) - b0);
+      b1 += smoothingCoefficient * (targetB1.load(std::memory_order_relaxed) - b1);
+      b2 += smoothingCoefficient * (targetB2.load(std::memory_order_relaxed) - b2);
+      a1 += smoothingCoefficient * (targetA1.load(std::memory_order_relaxed) - a1);
+      a2 += smoothingCoefficient * (targetA2.load(std::memory_order_relaxed) - a2);
+    }
+
+    void SnapToTarget() noexcept
+    {
+      b0 = targetB0.load(std::memory_order_relaxed);
+      b1 = targetB1.load(std::memory_order_relaxed);
+      b2 = targetB2.load(std::memory_order_relaxed);
+      a1 = targetA1.load(std::memory_order_relaxed);
+      a2 = targetA2.load(std::memory_order_relaxed);
     }
 
     double ProcessSample(const double input, const std::size_t channel) noexcept
@@ -136,17 +171,14 @@ private:
     double b2 = 0.0;
     double a1 = 0.0;
     double a2 = 0.0;
+    std::atomic<double> targetB0{1.0};
+    std::atomic<double> targetB1{0.0};
+    std::atomic<double> targetB2{0.0};
+    std::atomic<double> targetA1{0.0};
+    std::atomic<double> targetA2{0.0};
     std::array<double, kMaximumChannels> z1{};
     std::array<double, kMaximumChannels> z2{};
   };
-
-  static void ProcessFilter(Biquad& filter, double** inputs, double** outputs, const std::size_t numChannels,
-                            const std::size_t numFrames) noexcept
-  {
-    for (std::size_t channel = 0; channel < numChannels; ++channel)
-      for (std::size_t frame = 0; frame < numFrames; ++frame)
-        outputs[channel][frame] = filter.ProcessSample(inputs[channel][frame], channel);
-  }
 
   double LimitedFrequency(const double frequency) const noexcept
   {
@@ -202,30 +234,32 @@ private:
     }
   }
 
-  void UpdateCoefficients() noexcept
+  void UpdateCoefficientTargets() noexcept
   {
-    SetHighPassCoefficients(mHighPass, mHighPassFrequency, kMidQ);
-    SetShelfCoefficients(mLowShelf, kLowShelfFrequency, kMidQ, mLowShelfGain, false);
-    SetPeakingCoefficients(mMid, mMidFrequency, kMidQ, mMidGain);
-    SetShelfCoefficients(mHighShelf, kHighShelfFrequency, kMidQ, mHighShelfGain, true);
+    SetHighPassCoefficients(mHighPass, mHighPassFrequency.load(std::memory_order_relaxed), kMidQ);
+    SetShelfCoefficients(mLowShelf, kLowShelfFrequency, kMidQ, mLowShelfGain.load(std::memory_order_relaxed), false);
+    SetPeakingCoefficients(mMid, mMidFrequency.load(std::memory_order_relaxed), kMidQ,
+                           mMidGain.load(std::memory_order_relaxed));
+    SetShelfCoefficients(mHighShelf, kHighShelfFrequency, kMidQ,
+                         mHighShelfGain.load(std::memory_order_relaxed), true);
   }
 
-  bool mBypassed = true;
+  std::atomic<bool> mBypassed{true};
   double mSampleRate = 48000.0;
   std::size_t mMaxBlockSize = 1;
-  double mHighPassFrequency = 20.0;
-  double mLowShelfGain = 0.0;
-  double mMidGain = 0.0;
-  double mMidFrequency = 800.0;
-  double mHighShelfGain = 0.0;
+  double mSmoothingCoefficient = 1.0;
+  double mProcessedMix = 0.0;
+  std::atomic<double> mHighPassFrequency{120.0};
+  std::atomic<double> mLowShelfGain{0.0};
+  std::atomic<double> mMidGain{0.0};
+  std::atomic<double> mMidFrequency{800.0};
+  std::atomic<double> mHighShelfGain{0.0};
   Biquad mHighPass;
   Biquad mLowShelf;
   Biquad mMid;
   Biquad mHighShelf;
-  std::array<std::vector<double>, kMaximumChannels> mBufferA;
-  std::array<std::vector<double>, kMaximumChannels> mBufferB;
-  std::array<double*, kMaximumChannels> mBufferAPointers{};
-  std::array<double*, kMaximumChannels> mBufferBPointers{};
+  std::array<std::vector<double>, kMaximumChannels> mOutput;
+  std::array<double*, kMaximumChannels> mOutputPointers{};
 };
 
 // An internal-only reverb convolution stage. Host parameters, persistence and

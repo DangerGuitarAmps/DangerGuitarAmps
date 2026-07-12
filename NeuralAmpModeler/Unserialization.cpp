@@ -113,6 +113,62 @@ void _RenameKeys(nlohmann::json& j, std::unordered_map<std::string, std::string>
   }
 }
 
+// v0.7.17
+int _GetConfigFrom_0_7_17(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel",
+                                      "PreEQBypass",
+                                      "PreEQLowCut",
+                                      "PreEQLowShelfGain",
+                                      "PreEQMidGain",
+                                      "PreEQMidFrequency",
+                                      "PreEQHighShelfGain"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  return pos;
+}
+
+void _UpdateConfigFrom_0_7_16(nlohmann::json& config)
+{
+  config["PreEQBypass"] = 1.0;
+  config["PreEQLowCut"] = 120.0;
+  config["PreEQLowShelfGain"] = 0.0;
+  config["PreEQMidGain"] = 0.0;
+  config["PreEQMidFrequency"] = 800.0;
+  config["PreEQHighShelfGain"] = 0.0;
+}
+
 // v0.7.16: NAM path, Speaker IR path, Reverb IR path, then named parameters.
 int _GetConfigFrom_0_7_16(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
 {
@@ -150,6 +206,7 @@ int _GetConfigFrom_0_7_16(const iplug::IByteChunk& chunk, int startPos, nlohmann
     pos = chunk.Get(&value, pos);
     config[name] = value;
   }
+  _UpdateConfigFrom_0_7_16(config);
   return pos;
 }
 
@@ -165,6 +222,7 @@ void _UpdateConfigFrom_0_7_14(nlohmann::json& config)
   config["ReverbIRLowCut"] = 20.0;
   config["ReverbIRHighCut"] = 20000.0;
   config["ReverbIRWetLevel"] = 0.0;
+  _UpdateConfigFrom_0_7_16(config);
 }
 
 int _GetConfigFrom_0_7_14(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
@@ -340,7 +398,11 @@ int NeuralAmpModeler::_UnserializeStateWithKnownVersion(const iplug::IByteChunk&
   _Version version(versionStr);
   // Act accordingly
   nlohmann::json config;
-  if (version >= _Version(0, 7, 16))
+  if (version >= _Version(0, 7, 17))
+  {
+    pos = _GetConfigFrom_0_7_17(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 16))
   {
     pos = _GetConfigFrom_0_7_16(chunk, pos, config);
   }
