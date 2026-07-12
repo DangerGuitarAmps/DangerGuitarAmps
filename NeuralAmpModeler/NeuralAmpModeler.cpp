@@ -523,6 +523,7 @@ void NeuralAmpModeler::OnReset()
   mOutputSender.Reset(sampleRate);
   // If there is a model or IR loaded, they need to be checked for resampling.
   _ResetModelAndIR(sampleRate, GetBlockSize());
+  mPreEQStage.Prepare(sampleRate, maxBlockSize);
   mToneStack->Reset(sampleRate, maxBlockSize);
   mReverbIRStage.Prepare(sampleRate, maxBlockSize);
   _UpdateLatency();

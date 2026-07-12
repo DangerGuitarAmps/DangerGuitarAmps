@@ -4,6 +4,7 @@
 #include "../AudioDSPTools/dsp/RecursiveLinearFilter.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -32,8 +33,200 @@ struct CompressorTag
 {
 };
 
-using PreEQStage = PassThroughStage<PreEQTag>;
 using CompressorStage = PassThroughStage<CompressorTag>;
+
+class PreEQStage
+{
+public:
+  static constexpr std::size_t kMaximumChannels = 2;
+  static constexpr double kLowShelfFrequency = 120.0;
+  static constexpr double kHighShelfFrequency = 4000.0;
+  static constexpr double kMidQ = 0.7071067811865476;
+
+  void Prepare(const double sampleRate, const std::size_t maxBlockSize)
+  {
+    mSampleRate = std::max(sampleRate, 1.0);
+    mMaxBlockSize = std::max<std::size_t>(maxBlockSize, 1);
+    for (auto& channel : mBufferA)
+      channel.resize(mMaxBlockSize);
+    for (auto& channel : mBufferB)
+      channel.resize(mMaxBlockSize);
+    for (std::size_t channel = 0; channel < kMaximumChannels; ++channel)
+    {
+      mBufferAPointers[channel] = mBufferA[channel].data();
+      mBufferBPointers[channel] = mBufferB[channel].data();
+    }
+    Reset();
+    UpdateCoefficients();
+  }
+
+  void Reset() noexcept
+  {
+    mHighPass.Reset();
+    mLowShelf.Reset();
+    mMid.Reset();
+    mHighShelf.Reset();
+  }
+
+  double** Process(double** inputs, const std::size_t numChannels, const std::size_t numFrames) noexcept
+  {
+    if (mBypassed || numChannels == 0 || numChannels > kMaximumChannels || numFrames == 0
+        || numFrames > mMaxBlockSize)
+      return inputs;
+
+    ProcessFilter(mHighPass, inputs, mBufferAPointers.data(), numChannels, numFrames);
+    ProcessFilter(mLowShelf, mBufferAPointers.data(), mBufferBPointers.data(), numChannels, numFrames);
+    ProcessFilter(mMid, mBufferBPointers.data(), mBufferAPointers.data(), numChannels, numFrames);
+    ProcessFilter(mHighShelf, mBufferAPointers.data(), mBufferBPointers.data(), numChannels, numFrames);
+    return mBufferBPointers.data();
+  }
+
+  void SetBypassed(const bool bypassed) noexcept { mBypassed = bypassed; }
+  void SetHighPassFrequency(const double frequencyHz) noexcept
+  {
+    mHighPassFrequency = std::clamp(frequencyHz, 20.0, 300.0);
+    UpdateCoefficients();
+  }
+  void SetLowShelfGain(const double gainDB) noexcept
+  {
+    mLowShelfGain = std::clamp(gainDB, -12.0, 12.0);
+    UpdateCoefficients();
+  }
+  void SetMid(const double gainDB, const double frequencyHz) noexcept
+  {
+    mMidGain = std::clamp(gainDB, -12.0, 12.0);
+    mMidFrequency = std::clamp(frequencyHz, 150.0, 4000.0);
+    UpdateCoefficients();
+  }
+  void SetHighShelfGain(const double gainDB) noexcept
+  {
+    mHighShelfGain = std::clamp(gainDB, -12.0, 12.0);
+    UpdateCoefficients();
+  }
+
+private:
+  struct Biquad
+  {
+    void SetCoefficients(const double nb0, const double nb1, const double nb2, const double na0, const double na1,
+                         const double na2) noexcept
+    {
+      b0 = nb0 / na0;
+      b1 = nb1 / na0;
+      b2 = nb2 / na0;
+      a1 = na1 / na0;
+      a2 = na2 / na0;
+    }
+
+    double ProcessSample(const double input, const std::size_t channel) noexcept
+    {
+      const double output = b0 * input + z1[channel];
+      z1[channel] = b1 * input - a1 * output + z2[channel];
+      z2[channel] = b2 * input - a2 * output;
+      return output;
+    }
+
+    void Reset() noexcept
+    {
+      z1.fill(0.0);
+      z2.fill(0.0);
+    }
+
+    double b0 = 1.0;
+    double b1 = 0.0;
+    double b2 = 0.0;
+    double a1 = 0.0;
+    double a2 = 0.0;
+    std::array<double, kMaximumChannels> z1{};
+    std::array<double, kMaximumChannels> z2{};
+  };
+
+  static void ProcessFilter(Biquad& filter, double** inputs, double** outputs, const std::size_t numChannels,
+                            const std::size_t numFrames) noexcept
+  {
+    for (std::size_t channel = 0; channel < numChannels; ++channel)
+      for (std::size_t frame = 0; frame < numFrames; ++frame)
+        outputs[channel][frame] = filter.ProcessSample(inputs[channel][frame], channel);
+  }
+
+  double LimitedFrequency(const double frequency) const noexcept
+  {
+    return std::min(frequency, 0.49 * mSampleRate);
+  }
+
+  void SetHighPassCoefficients(Biquad& filter, const double frequency, const double q) noexcept
+  {
+    const double omega = 2.0 * MATH_PI * LimitedFrequency(frequency) / mSampleRate;
+    const double alpha = std::sin(omega) / (2.0 * q);
+    const double cosine = std::cos(omega);
+    const double b0 = 0.5 * (1.0 + cosine);
+    const double b1 = -(1.0 + cosine);
+    const double b2 = b0;
+    const double a0 = 1.0 + alpha;
+    const double a1 = -2.0 * cosine;
+    const double a2 = 1.0 - alpha;
+    filter.SetCoefficients(b0, b1, b2, a0, a1, a2);
+  }
+
+  void SetPeakingCoefficients(Biquad& filter, const double frequency, const double q, const double gainDB) noexcept
+  {
+    const double a = std::pow(10.0, gainDB / 40.0);
+    const double omega = 2.0 * MATH_PI * LimitedFrequency(frequency) / mSampleRate;
+    const double alpha = std::sin(omega) / (2.0 * q);
+    const double cosine = std::cos(omega);
+    filter.SetCoefficients(1.0 + alpha * a, -2.0 * cosine, 1.0 - alpha * a, 1.0 + alpha / a,
+                           -2.0 * cosine, 1.0 - alpha / a);
+  }
+
+  void SetShelfCoefficients(Biquad& filter, const double frequency, const double q, const double gainDB,
+                            const bool highShelf) noexcept
+  {
+    const double a = std::pow(10.0, gainDB / 40.0);
+    const double omega = 2.0 * MATH_PI * LimitedFrequency(frequency) / mSampleRate;
+    const double alpha = std::sin(omega) / (2.0 * q);
+    const double cosine = std::cos(omega);
+    const double ap = a + 1.0;
+    const double am = a - 1.0;
+    const double rootTerm = 2.0 * std::sqrt(a) * alpha;
+
+    if (highShelf)
+    {
+      filter.SetCoefficients(a * (ap + am * cosine + rootTerm), -2.0 * a * (am + ap * cosine),
+                             a * (ap + am * cosine - rootTerm), ap - am * cosine + rootTerm,
+                             2.0 * (am - ap * cosine), ap - am * cosine - rootTerm);
+    }
+    else
+    {
+      filter.SetCoefficients(a * (ap - am * cosine + rootTerm), 2.0 * a * (am - ap * cosine),
+                             a * (ap - am * cosine - rootTerm), ap + am * cosine + rootTerm,
+                             -2.0 * (am + ap * cosine), ap + am * cosine - rootTerm);
+    }
+  }
+
+  void UpdateCoefficients() noexcept
+  {
+    SetHighPassCoefficients(mHighPass, mHighPassFrequency, kMidQ);
+    SetShelfCoefficients(mLowShelf, kLowShelfFrequency, kMidQ, mLowShelfGain, false);
+    SetPeakingCoefficients(mMid, mMidFrequency, kMidQ, mMidGain);
+    SetShelfCoefficients(mHighShelf, kHighShelfFrequency, kMidQ, mHighShelfGain, true);
+  }
+
+  bool mBypassed = true;
+  double mSampleRate = 48000.0;
+  std::size_t mMaxBlockSize = 1;
+  double mHighPassFrequency = 20.0;
+  double mLowShelfGain = 0.0;
+  double mMidGain = 0.0;
+  double mMidFrequency = 800.0;
+  double mHighShelfGain = 0.0;
+  Biquad mHighPass;
+  Biquad mLowShelf;
+  Biquad mMid;
+  Biquad mHighShelf;
+  std::array<std::vector<double>, kMaximumChannels> mBufferA;
+  std::array<std::vector<double>, kMaximumChannels> mBufferB;
+  std::array<double*, kMaximumChannels> mBufferAPointers{};
+  std::array<double*, kMaximumChannels> mBufferBPointers{};
+};
 
 // An internal-only reverb convolution stage. Host parameters, persistence and
 // UI integration are intentionally deferred. File loading and buffer preparation
