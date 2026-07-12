@@ -184,12 +184,22 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       noiseGateArea.GetVShifted(noiseGateArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
     const auto eqToggleArea = midKnobArea.GetVShifted(midKnobArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
 
+    // Compact Pre-EQ panel. The logical render and hit rectangles are the
+    // same, so scale-mode resizing preserves control alignment.
+    const auto preEQSectionArea = IRECT(45.0f, 286.0f, b.R - 45.0f, 430.0f);
+    const auto preEQTitleArea = preEQSectionArea.GetFromTop(18.0f);
+    const auto preEQBypassArea = IRECT(55.0f, 326.0f, 145.0f, 366.0f);
+    const auto preEQKnobsArea = IRECT(155.0f, 310.0f, b.R - 45.0f, 430.0f);
+    const auto preEQLowCutArea = preEQKnobsArea.GetGridCell(0, 0, 1, 5);
+    const auto preEQLowShelfArea = preEQKnobsArea.GetGridCell(0, 1, 1, 5);
+    const auto preEQMidGainArea = preEQKnobsArea.GetGridCell(0, 2, 1, 5);
+    const auto preEQMidFrequencyArea = preEQKnobsArea.GetGridCell(0, 3, 1, 5);
+    const auto preEQHighShelfArea = preEQKnobsArea.GetGridCell(0, 4, 1, 5);
+
     // Areas for model and IR
     const auto fileWidth = 200.0f;
     const auto irYOffset = 38.0f;
-    // Keep the original 600x400 shell geometry anchored while the Reverb IR
-    // section uses the expanded lower portion of the window.
-    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 309.0f, b.MW() + fileWidth * 0.5f, 339.0f);
+    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 449.0f, b.MW() + fileWidth * 0.5f, 479.0f);
     const auto slimIconArea =
       IRECT(modelArea.R + 6.f, modelArea.MH() - 14.f, modelArea.R + 6.f + 2.f * 28.f, modelArea.MH() + 14.f);
     const auto modelIconArea = modelArea.GetFromLeft(30).GetTranslated(-40, 10);
@@ -198,11 +208,11 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
     // Compact Reverb IR panel. Render and hit rectangles use the same logical
     // bounds so scale-mode resizing preserves alignment.
-    const auto reverbSectionArea = IRECT(45.0f, 390.0f, b.R - 45.0f, 562.0f);
+    const auto reverbSectionArea = IRECT(45.0f, 530.0f, b.R - 45.0f, 712.0f);
     const auto reverbTitleArea = reverbSectionArea.GetFromTop(18.0f);
-    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 410.0f, b.MW() + 100.0f, 440.0f);
-    const auto reverbBypassArea = IRECT(55.0f, 408.0f, 165.0f, 448.0f);
-    const auto reverbKnobsArea = IRECT(85.0f, 442.0f, b.R - 85.0f, 562.0f);
+    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 550.0f, b.MW() + 100.0f, 580.0f);
+    const auto reverbBypassArea = IRECT(55.0f, 548.0f, 165.0f, 588.0f);
+    const auto reverbKnobsArea = IRECT(85.0f, 590.0f, b.R - 85.0f, 710.0f);
     const auto reverbMixArea = reverbKnobsArea.GetGridCell(0, 0, 1, 5);
     const auto reverbPreDelayArea = reverbKnobsArea.GetGridCell(0, 1, 1, 5);
     const auto reverbLowCutArea = reverbKnobsArea.GetGridCell(0, 2, 1, 5);
@@ -288,6 +298,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     pGraphics->AttachControl(
       new IVLabelControl(productLegendArea, "MODEL AMPLIFIER  //  IMPULSE CABINET", shellLegendStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
+    pGraphics->AttachControl(new IVLabelControl(preEQTitleArea, "PRE-EQ", shellLegendStyle));
 
 #ifdef NAM_PICK_DIRECTORY
     const std::string defaultNamFileString = "Select model directory...";
@@ -344,6 +355,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       new NAMSwitchControl(reverbBypassArea, kReverbIRBypass, "Bypass = Dry", reverbControlStyle,
                            switchHandleBitmap));
     pGraphics->AttachControl(
+      new NAMSwitchControl(preEQBypassArea, kPreEQBypass, "Bypass = Dry", reverbControlStyle,
+                           switchHandleBitmap));
+    pGraphics->AttachControl(
       new NAMSwitchControl(ngToggleArea, kNoiseGateActive, "Noise Gate", style, switchHandleBitmap));
     pGraphics->AttachControl(new NAMSwitchControl(eqToggleArea, kEQActive, "EQ", style, switchHandleBitmap));
 
@@ -357,6 +371,27 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     pGraphics->AttachControl(
       new NAMKnobControl(trebleKnobArea, kToneTreble, "", style, knobBackgroundBitmap), -1, "EQ_KNOBS");
     pGraphics->AttachControl(new NAMKnobControl(outputKnobArea, kOutputLevel, "", style, knobBackgroundBitmap));
+    pGraphics->AttachControl(
+      new NAMKnobControl(preEQLowCutArea, kPreEQLowCut, "Low cut", reverbControlStyle, knobBackgroundBitmap), -1,
+      "PRE_EQ_CONTROLS");
+    pGraphics->AttachControl(
+      new NAMKnobControl(preEQLowShelfArea, kPreEQLowShelfGain, "Low shelf", reverbControlStyle,
+                         knobBackgroundBitmap),
+      -1, "PRE_EQ_CONTROLS");
+    pGraphics->AttachControl(
+      new NAMKnobControl(preEQMidGainArea, kPreEQMidGain, "Mid gain", reverbControlStyle, knobBackgroundBitmap), -1,
+      "PRE_EQ_CONTROLS");
+    pGraphics->AttachControl(
+      new NAMKnobControl(preEQMidFrequencyArea, kPreEQMidFrequency, "Mid freq", reverbControlStyle,
+                         knobBackgroundBitmap),
+      -1, "PRE_EQ_CONTROLS");
+    pGraphics->AttachControl(
+      new NAMKnobControl(preEQHighShelfArea, kPreEQHighShelfGain, "High shelf", reverbControlStyle,
+                         knobBackgroundBitmap),
+      -1, "PRE_EQ_CONTROLS");
+    const bool preEQBypassed = GetParam(kPreEQBypass)->Bool();
+    pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
+                                 [preEQBypassed](IControl* pControl) { pControl->SetDisabled(preEQBypassed); });
     pGraphics->AttachControl(
       new NAMKnobControl(reverbMixArea, kReverbIRMix, "Mix", reverbControlStyle, knobBackgroundBitmap), -1,
       "REVERB_CONTROLS");
@@ -683,6 +718,10 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
       case kIRToggle: pGraphics->GetControlWithTag(kCtrlTagIRFileBrowser)->SetDisabled(!active); break;
       case kReverbIRBypass:
         pGraphics->ForControlInGroup("REVERB_CONTROLS",
+                                     [active](IControl* pControl) { pControl->SetDisabled(active); });
+        break;
+      case kPreEQBypass:
+        pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
                                      [active](IControl* pControl) { pControl->SetDisabled(active); });
         break;
       default: break;
