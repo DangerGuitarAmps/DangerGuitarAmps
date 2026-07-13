@@ -27,6 +27,15 @@ def env_or_default(name, default):
     return os.environ.get(name, default)
 
 
+def config_string_define(name):
+    prefix = "#define " + name + " "
+    with open(projectpath + "/config.h", encoding="utf-8") as config_file:
+        for line in config_file:
+            if line.startswith(prefix):
+                return line[len(prefix):].strip().strip('"')
+    raise RuntimeError("Missing config definition: " + name)
+
+
 def main():
     demo = 0
 
@@ -63,8 +72,8 @@ def main():
             "INSTALLER_APP_SUPPORT_URL",
             "https://www.neuralampmodeler.com/",
         ),
-        "AppVersion": config["FULL_VER_STR"],
-        "VersionInfoVersion": config["FULL_VER_STR"],
+        "AppVersion": config_string_define("PLUG_VERSION_STR"),
+        "VersionInfoVersion": config_string_define("PLUG_WINDOWS_VERSION_STR"),
         "DefaultDirName": "{pf}\\" + display_name,
         "DefaultGroupName": display_name,
         "OutputBaseFilename": env_or_default(
