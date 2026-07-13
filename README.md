@@ -1,38 +1,78 @@
-# Neural Amp Modeler Plug-in
+# Danger Guitar Amps
 
-[![Build](https://github.com/sdatkinson/NeuralAmpModelerPlugin/actions/workflows/build-native.yml/badge.svg)](https://github.com/sdatkinson/NeuralAmpModelerPlugin/actions/workflows/build-native.yml)
+Danger Guitar Amps is a Windows x64 VST3 guitar-processing plugin built on
+the Neural Amp Modeler open-source project.
 
-A VST3/AudioUnit plug-in\* for [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler), built with [iPlug2](https://iplug2.github.io).
+## Download
 
-- https://www.youtube.com/user/RunawayThumbtack
-- https://github.com/sdatkinson/neural-amp-modeler
+Download the latest tested release from the Releases page.
 
-## Building and Installation
+Current release:
+Danger Guitar Amps v1.0 RC2
 
-To build the app or plugin, there are build scripts in [NeuralAmpModeler/scripts/](https://github.com/sdatkinson/NeuralAmpModelerPlugin/tree/main/NeuralAmpModeler/scripts).
-The [workflows](https://github.com/sdatkinson/NeuralAmpModelerPlugin/tree/main/.github/workflows) can show you how to do this.
+## Signal Chain
 
-### Pre-built installers
+Input → Noise Gate → Pre-EQ → NAM Model → Speaker IR → Post-EQ → Reverb IR → Output
 
-If you want a pre-built installer from this repo without having to , I've made "Gateway", a fork of this repo, availble at https://neuralampmodeler.com/users!
+## Features
 
-## Supported Platforms
+- Neural Amp Modeler model loading
+- Dedicated noise gate
+- Pre-EQ
+- Independent speaker IR loader
+- Post-EQ
+- Independent reverb IR loader
+- Input and output controls
+- Module bypass controls
+- State recall and automation
+- Custom Danger Guitar Amps interface
 
-The Neural Amp Modeler plugin currently supports Windows 10 (64bit) or later, and macOS 10.15 (Catalina) or later.
+## Installation
 
-For Linux support, there is an LV2 plugin available: https://github.com/mikeoliphant/neural-amp-modeler-lv2.
+1. Download the Windows VST3 ZIP from Releases.
+2. Extract it.
+3. Copy the complete `DangerGuitarAmps.vst3` folder to:
 
-## About
+   `C:\Program Files\Common Files\VST3\`
 
-This is a cleaned up version of [the original iPlug2-based NAM plugin](https://github.com/sdatkinson/iPlug2) with some refactoring to adopt better practices recommended by the developers of iPlug2.
-(Thanks [Oli](https://github.com/olilarkin) for your generous suggestions!)
+4. Restart or rescan your DAW.
 
-\*could also support AAX, CLAP, Linux, iOS soon.
+## System Requirements
 
-## Rough edges
+- Windows 10 or Windows 11
+- 64-bit VST3 host
+- x64 processor
 
-### Standalone I/O
-The I/O for the standalone doesn't inherit the stability of most plugin hosts (DAWs), so it's a bit sparser on features. For complex routing, the plugin (VST3/AU) inside a plugin host is still the most reliable option.
+## Current Status
 
-### Graphics backend
-If you're having trouble with NAM crashing before the GUI comes up, then you might have an unsupported graphics configuration. Usually, this is when you have a dedicated graphics card (like an nVIDIA GPU) and you're using the integrated (CPU) graphics on a Windows system. To fix this, Go to the control panel, pick NAM (or your DAW), and make sure that it uses your graphics card. (If you know more and can help fix this, please make an Issue and let me know more!)
+Danger Guitar Amps v1.0 RC2 is a release candidate.
+
+It has been tested in REAPER. Testing in additional VST3 hosts is welcome.
+
+## Reporting Problems
+
+Open a GitHub Issue and include:
+
+- Windows version
+- DAW and version
+- audio interface
+- sample rate and buffer size
+- reproduction steps
+- screenshots or crash logs where available
+
+## Credits and Attribution
+
+Danger Guitar Amps is derived from the Neural Amp Modeler Plugin project.
+
+Original project:
+https://github.com/sdatkinson/NeuralAmpModelerPlugin
+
+Neural Amp Modeler:
+https://www.neuralampmodeler.com/
+
+This repository retains the applicable upstream licence, copyright notices,
+and third-party attribution files.
+
+## Licence
+
+See the repository licence and third-party notices for details.
