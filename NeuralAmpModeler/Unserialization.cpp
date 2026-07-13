@@ -503,7 +503,13 @@ public:
     // Split the string by "."
     while (std::getline(stream, token, '.'))
     {
-      parts.push_back(std::stoi(token)); // Convert to int and store
+      std::size_t parsedCharacters = 0;
+      const int value = std::stoi(token, &parsedCharacters);
+      const bool semanticPrerelease = parts.size() == 2 && parsedCharacters < token.size()
+                                      && token[parsedCharacters] == '-';
+      if (parsedCharacters != token.size() && !semanticPrerelease)
+        throw std::invalid_argument("Invalid version segment");
+      parts.push_back(value);
     }
 
     // Check if we have exactly 3 parts

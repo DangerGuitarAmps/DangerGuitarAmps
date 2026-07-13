@@ -993,10 +993,9 @@ private:
 
     void OnAttached() override
     {
-      WDL_String verStr, buildInfoStr;
-      PLUG()->GetPluginVersionStr(verStr);
-
-      buildInfoStr.SetFormatted(100, "Version %s %s %s", verStr.Get(), PLUG()->GetArchStr(), PLUG()->GetAPIStr());
+      WDL_String buildInfoStr;
+      buildInfoStr.SetFormatted(100, "Version %s %s %s", PLUG_VERSION_STR, PLUG()->GetArchStr(),
+                                PLUG()->GetAPIStr());
 
       AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 0), "NEURAL AMP MODELER",
                                       "https://www.neuralampmodeler.com", mText, COLOR_TRANSPARENT,

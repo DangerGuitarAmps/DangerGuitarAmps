@@ -1,6 +1,7 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "..\config.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -220,8 +221,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,0,1,0
- PRODUCTVERSION 0,0,1,0
+ FILEVERSION PLUG_WINDOWS_VERSION
+ PRODUCTVERSION PLUG_WINDOWS_VERSION
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -236,8 +237,8 @@ BEGIN
     BEGIN
         BLOCK "040004e4"
         BEGIN
-            VALUE "FileVersion", "0.0.1"
-            VALUE "ProductVersion", "0.0.1"
+            VALUE "FileVersion", PLUG_WINDOWS_VERSION_STR
+            VALUE "ProductVersion", PLUG_WINDOWS_VERSION_STR
             VALUE "OriginalFilename", "DangerGuitarAmps.vst3"
             VALUE "FileDescription", "Danger Guitar Amps"
             VALUE "InternalName", "DangerGuitarAmps"
@@ -263,7 +264,6 @@ END
 //
 // Generated from the TEXTINCLUDE 3 resource.
 //
-#include "..\config.h"
 ROBOTO_FN TTF ROBOTO_FN
 MICHROMA_FN TTF MICHROMA_FN
 FILE_FN SVG FILE_FN
