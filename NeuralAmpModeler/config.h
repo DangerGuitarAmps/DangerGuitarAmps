@@ -1,15 +1,15 @@
-#define PLUG_NAME "NeuralAmpModeler"
-#define PLUG_MFR "Steven Atkinson"
-#define PLUG_VERSION_HEX 0x0000070f
-#define PLUG_VERSION_STR "0.7.15"
-#define PLUG_UNIQUE_ID '1YEo'
-#define PLUG_MFR_ID 'SDAa'
+#define PLUG_NAME "Danger Guitar Amps"
+#define PLUG_MFR "Danger Audio"
+#define PLUG_VERSION_HEX 0x00000713
+#define PLUG_VERSION_STR "0.7.19"
+#define PLUG_UNIQUE_ID 'DGAm'
+#define PLUG_MFR_ID 'DnGA'
 #define PLUG_URL_STR "https://github.com/sdatkinson/NeuralAmpModelerPlugin"
 #define PLUG_EMAIL_STR "spam@me.com"
-#define PLUG_COPYRIGHT_STR "Copyright 2022 Steven Atkinson"
+#define PLUG_COPYRIGHT_STR "Copyright 2026 Danger Audio"
 #define PLUG_CLASS_NAME NeuralAmpModeler
-#define BUNDLE_NAME "NeuralAmpModeler"
-#define BUNDLE_MFR "StevenAtkinson"
+#define BUNDLE_NAME "DangerGuitarAmps"
+#define BUNDLE_MFR "DangerAudio"
 #define BUNDLE_DOMAIN "com"
 
 #define SHARED_RESOURCES_SUBPATH "NeuralAmpModeler"
@@ -28,7 +28,7 @@
 #define PLUG_DOES_STATE_CHUNKS 0
 #define PLUG_HAS_UI 1
 #define PLUG_WIDTH 600
-#define PLUG_HEIGHT 400
+#define PLUG_HEIGHT 986
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 #define PLUG_HOST_RESIZE 0
@@ -69,6 +69,8 @@
 #define IR_ICON_OFF_FN "IRIconOff.svg"
 #define GLOBE_ICON_FN "Globe.svg"
 #define SLIMMABLE_ICON_FN "SlimmableIcon.svg"
+#define DANGER_LOGO_FN "DangerLogo.svg"
+#define DANGER_BACKGROUND_FN "DangerRackBackground.svg"
 
 #define BACKGROUND_FN "Background.jpg"
 #define BACKGROUND2X_FN "Background@2x.jpg"

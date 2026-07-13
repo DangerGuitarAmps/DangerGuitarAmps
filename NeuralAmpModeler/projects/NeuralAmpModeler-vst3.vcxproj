@@ -359,6 +359,7 @@
     <ClInclude Include="..\..\NeuralAmpModelerCore\NAM\wavenet\model.h" />
     <ClInclude Include="..\..\NeuralAmpModelerCore\NAM\wavenet\a2_fast.h" />
     <ClInclude Include="..\resources\resource.h" />
+    <ClInclude Include="..\SignalChain.h" />
     <ClInclude Include="..\ToneStack.h" />
   </ItemGroup>
   <ItemGroup>

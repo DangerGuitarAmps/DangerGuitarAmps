@@ -121,10 +121,87 @@ public:
   }
 };
 
+// POST-EQ variant of the normal Danger bitmap knob. It uses the same asset,
+// indicator track and highlight treatment while allowing an explicit diameter
+// for the compact composite layout.
+class NAMPostEQBitmapKnobControl : public IVKnobControl, public IBitmapBase
+{
+public:
+  NAMPostEQBitmapKnobControl(const IRECT& bounds, int paramIdx, const float diameter, const IVStyle& style,
+                             IBitmap bitmap)
+  : IVKnobControl(bounds, paramIdx, " ", style.WithShowLabel(false), true)
+  , IBitmapBase(bitmap)
+  , mDiameter(diameter)
+  {
+    mInnerPointerFrac = 0.55f;
+  }
+
+  void OnRescale() override { mBitmap = GetUI()->GetScaledBitmap(mBitmap); }
+
+  bool IsHit(float x, float y) const override
+  {
+    if (mStyle.showValue && mValueBounds.Contains(x, y))
+      return true;
+    const auto knobRect = mWidgetBounds.GetCentredInside(mDiameter, mDiameter);
+    const float dx = x - knobRect.MW();
+    const float dy = y - knobRect.MH();
+    const float radius = 0.5f * mDiameter;
+    return dx * dx + dy * dy <= radius * radius;
+  }
+
+  void DrawWidget(IGraphics& g) override
+  {
+    const auto knobRect = mWidgetBounds.GetCentredInside(mDiameter, mDiameter);
+    const float cx = knobRect.MW();
+    const float cy = knobRect.MH();
+    const float radius = 0.5f * mDiameter * 0.73f;
+    const float angle = mAngle1 + (static_cast<float>(GetValue()) * (mAngle2 - mAngle1));
+    DrawIndicatorTrack(g, angle, cx + 0.5f, cy, radius);
+    g.DrawFittedBitmap(mBitmap, knobRect);
+    float data[2][2];
+    RadialPoints(angle, cx, cy, mInnerPointerFrac * radius, mInnerPointerFrac * radius, 2, data);
+    g.PathCircle(data[1][0], data[1][1], 3.0f);
+    g.PathFill(IPattern::CreateRadialGradient(data[1][0], data[1][1], 4.0f,
+                                              {{GetColor(mMouseIsOver ? kX3 : kX1), 0.0f},
+                                               {GetColor(mMouseIsOver ? kX3 : kX1), 0.8f},
+                                               {COLOR_TRANSPARENT, 1.0f}}),
+               {}, &mBlend);
+    g.DrawCircle(COLOR_BLACK.WithOpacity(0.5f), data[1][0], data[1][1], 3.0f, &mBlend);
+  }
+
+private:
+  float mDiameter;
+};
+
+class NAMParamValueControl : public IControl
+{
+public:
+  NAMParamValueControl(const IRECT& bounds, int paramIdx, const IText& text)
+  : IControl(bounds, paramIdx)
+  , mText(text)
+  {
+    SetIgnoreMouse(true);
+  }
+
+  void Draw(IGraphics& g) override
+  {
+    if (const auto* param = GetParam())
+    {
+      WDL_String value;
+      param->GetDisplayWithLabel(value);
+      g.DrawText(mText, value.Get(), mRECT, &mBlend);
+    }
+  }
+
+private:
+  IText mText;
+};
+
 class NAMSwitchControl : public IVSlideSwitchControl, public IBitmapBase
 {
 public:
-  NAMSwitchControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, IBitmap bitmap)
+  NAMSwitchControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, IBitmap bitmap,
+                   const EDirection direction = EDirection::Horizontal)
   : IVSlideSwitchControl(bounds, paramIdx, label,
                          style.WithRoundness(0.666f)
                            .WithShowValue(false)
@@ -134,7 +211,8 @@ public:
                            .WithColor(kFR, COLOR_BLACK)
                            .WithFrameThickness(0.5f)
                            .WithWidgetFrac(0.5f)
-                           .WithLabelOrientation(EOrientation::South))
+                           .WithLabelOrientation(EOrientation::South),
+                         false, direction)
   , IBitmapBase(bitmap)
   {
   }
@@ -148,7 +226,10 @@ public:
   void DrawTrack(IGraphics& g, const IRECT& bounds) override
   {
     IRECT handleBounds = GetAdjustedHandleBounds(bounds);
-    handleBounds = IRECT(handleBounds.L, handleBounds.T, handleBounds.R, handleBounds.T + mBitmap.H());
+    if (mDirection == EDirection::Horizontal)
+      handleBounds = IRECT(handleBounds.L, handleBounds.T, handleBounds.R, handleBounds.T + mBitmap.H());
+    else
+      handleBounds = handleBounds.GetCentredInside(mBitmap.W(), handleBounds.H());
     IRECT centreBounds = handleBounds.GetPadded(-mStyle.shadowOffset);
     IRECT shadowBounds = handleBounds.GetTranslated(mStyle.shadowOffset, mStyle.shadowOffset);
     //    const float contrast = mDisabled ? -GRAYED_ALPHA : 0.f;
@@ -194,7 +275,14 @@ public:
   void DrawHandle(IGraphics& g, const IRECT& filledArea) override
   {
     IRECT r;
-    if (GetSelectedIdx() == 0)
+    if (mDirection == EDirection::Vertical)
+    {
+      if (GetSelectedIdx() == 0)
+        r = filledArea.GetFromBottom(mBitmap.H());
+      else
+        r = filledArea.GetFromTop(mBitmap.H());
+    }
+    else if (GetSelectedIdx() == 0)
     {
       r = filledArea.GetFromLeft(mBitmap.W());
     }
@@ -437,6 +525,7 @@ public:
         break;
       case kMsgTagLoadedModel:
       case kMsgTagLoadedIR:
+      case kMsgTagLoadedReverbIR:
       {
         WDL_String fileName, directory;
         fileName.Set(reinterpret_cast<const char*>(pData));
@@ -682,12 +771,12 @@ public:
 class NAMSettingsPageControl : public IContainerBaseWithNamedChildren
 {
 public:
-  NAMSettingsPageControl(const IRECT& bounds, const IBitmap& bitmap, const IBitmap& inputLevelBackgroundBitmap,
+  NAMSettingsPageControl(const IRECT& bounds, const ISVG& backgroundSVG, const IBitmap& inputLevelBackgroundBitmap,
                          const IBitmap& switchBitmap, ISVG closeSVG, const IVStyle& style,
                          const IVStyle& radioButtonStyle)
   : IContainerBaseWithNamedChildren(bounds)
   , mAnimationTime(0)
-  , mBitmap(bitmap)
+  , mBackgroundSVG(backgroundSVG)
   , mInputLevelBackgroundBitmap(inputLevelBackgroundBitmap)
   , mSwitchBitmap(switchBitmap)
   , mStyle(style)
@@ -761,7 +850,7 @@ public:
     const auto style = mStyle.WithDrawFrame(false).WithValueText(text);
     const IVStyle leftStyle = style.WithValueText(leftText);
 
-    AddNamedChildControl(new IBitmapControl(GetRECT(), mBitmap), mControlNames.bitmap)->SetIgnoreMouse(true);
+    AddNamedChildControl(new ISVGControl(GetRECT(), mBackgroundSVG), mControlNames.bitmap)->SetIgnoreMouse(true);
     const auto titleArea = GetRECT().GetPadded(-(pad + 10.0f)).GetFromTop(50.0f);
     AddNamedChildControl(new IVLabelControl(titleArea, "SETTINGS", titleStyle), mControlNames.title);
 
@@ -825,7 +914,7 @@ public:
   };
 
 private:
-  IBitmap mBitmap;
+  ISVG mBackgroundSVG;
   IBitmap mInputLevelBackgroundBitmap;
   IBitmap mSwitchBitmap;
   IVStyle mStyle;

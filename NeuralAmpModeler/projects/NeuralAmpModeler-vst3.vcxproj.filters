@@ -460,6 +460,7 @@
       <Filter>dsp\ResamplingContainer\Dependencies\WDL</Filter>
     </ClInclude>
     <ClInclude Include="..\ToneStack.h" />
+    <ClInclude Include="..\SignalChain.h" />
     <ClInclude Include="..\NeuralAmpModelerCore\NAM\get_dsp.h">
       <Filter>NAM</Filter>
     </ClInclude>

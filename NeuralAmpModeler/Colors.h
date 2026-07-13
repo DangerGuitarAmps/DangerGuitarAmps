@@ -15,7 +15,7 @@ namespace PluginColors
 {
 // HINT: ARGB
 // COLORS!
-const iplug::igraphics::IColor OFF_WHITE(255, 243, 246, 249); // Material UI because Heidi said so
+const iplug::igraphics::IColor OFF_WHITE(255, 226, 218, 194); // Aged equipment legend
 
 // From group photo
 // const iplug::igraphics::IColor NAM_5(255, 206, 194, 224);  // Languid
@@ -52,10 +52,10 @@ const iplug::igraphics::IColor OFF_WHITE(255, 243, 246, 249); // Material UI bec
 // Pantone const iplug::igraphics::IColor NAM_3(255, 218, 203, 246);  //
 // Lavender Blue
 
-// Blue mode
-const iplug::igraphics::IColor NAM_1(255, 29, 26, 31); // Raisin Black
-const iplug::igraphics::IColor NAM_2(255, 80, 133, 232); // Azure
-const iplug::igraphics::IColor NAM_3(255, 162, 178, 191); // Cadet Blue Crayola
+// Danger Guitar Amps industrial rack palette
+const iplug::igraphics::IColor NAM_1(255, 18, 19, 18); // Textured black chassis
+const iplug::igraphics::IColor NAM_2(255, 177, 37, 31); // Restrained warning red
+const iplug::igraphics::IColor NAM_3(255, 151, 148, 137); // Worn steel
 // Alts
 // const iplug::igraphics::IColor NAM_1(255, 18, 17, 19);  // Smoky Black
 // const iplug::igraphics::IColor NAM_2(255, 126, 188, 230);  // Camel
@@ -67,11 +67,9 @@ const iplug::igraphics::IColor NAM_3(255, 162, 178, 191); // Cadet Blue Crayola
 // const iplug::igraphics::IColor NAM_3(255, 207, 220, 229);  // Beau Blue
 // const iplug::igraphics::IColor NAM_3(255, 187, 199, 208);  // Silver Sand
 
-// Evan Heritage theme colors
-const iplug::igraphics::IColor NAM_0(0, 18, 17, 19); // Transparent
-const iplug::igraphics::IColor NAM_THEMECOLOR(255, 80, 133, 232); // Azure
-// const iplug::igraphics::IColor NAM_THEMECOLOR(255, 23, 190, 187); // Custom :)
-const iplug::igraphics::IColor NAM_THEMEFONTCOLOR(255, 242, 242, 242); // Dark White
+const iplug::igraphics::IColor NAM_0(0, 18, 19, 18); // Transparent
+const iplug::igraphics::IColor NAM_THEMECOLOR(255, 177, 37, 31); // Warning red
+const iplug::igraphics::IColor NAM_THEMEFONTCOLOR(255, 226, 218, 194); // Aged cream
 
 // Misc
 // const iplug::igraphics::IColor MOUSEOVER = NAM_3.WithOpacity(0.3);

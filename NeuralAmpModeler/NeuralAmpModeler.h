@@ -9,7 +9,7 @@
 #include "../NeuralAmpModelerCore/NAM/slimmable.h"
 
 #include "Colors.h"
-#include "ToneStack.h"
+#include "SignalChain.h"
 
 #include "IPlug_include_in_plug_hdr.h"
 #include "ISender.h"
@@ -47,10 +47,39 @@ enum EParams
   kInputCalibrationLevel,
   kOutputMode,
   kSlim,
+  // Reverb IR parameters must remain appended for session compatibility.
+  kReverbIRBypass,
+  kReverbIRMix,
+  kReverbIRPreDelay,
+  kReverbIRLowCut,
+  kReverbIRHighCut,
+  kReverbIRWetLevel,
+  // Pre-EQ parameters must remain appended for session compatibility.
+  kPreEQBypass,
+  kPreEQLowCut,
+  kPreEQLowShelfGain,
+  kPreEQMidGain,
+  kPreEQMidFrequency,
+  kPreEQHighShelfGain,
+  // Post-EQ parameters must remain appended for session compatibility.
+  kPostEQBypass,
+  kPostEQLowCut,
+  kPostEQBand1Frequency,
+  kPostEQBand1Gain,
+  kPostEQBand1Q,
+  kPostEQBand2Frequency,
+  kPostEQBand2Gain,
+  kPostEQBand2Q,
+  kPostEQBand3Frequency,
+  kPostEQBand3Gain,
+  kPostEQBand3Q,
+  kPostEQBand4Frequency,
+  kPostEQBand4Gain,
+  kPostEQBand4Q,
+  kPostEQHighCut,
   kNumParams
 };
 
-const int numKnobs = 6;
 
 enum ECtrlTags
 {
@@ -65,6 +94,7 @@ enum ECtrlTags
   kCtrlTagSlimmableIcon,
   kCtrlTagSlimOverlayBackdrop,
   kCtrlTagSlimKnob,
+  kCtrlTagReverbIRFileBrowser,
   kNumCtrlTags
 };
 
@@ -73,11 +103,13 @@ enum EMsgTags
   // These tags are used from UI -> DSP
   kMsgTagClearModel = 0,
   kMsgTagClearIR,
+  kMsgTagClearReverbIR,
   kMsgTagHighlightColor,
   // The following tags are from DSP -> UI
   kMsgTagLoadFailed,
   kMsgTagLoadedModel,
   kMsgTagLoadedIR,
+  kMsgTagLoadedReverbIR,
   kNumMsgTags
 };
 
@@ -227,7 +259,15 @@ private:
   // Sizes based on mInputArray
   size_t _GetBufferNumChannels() const;
   size_t _GetBufferNumFrames() const;
-  void _InitToneStack();
+  // Signal-chain stage boundaries. The gate detector and gain applicator remain
+  // split around NAM to preserve the current audible behavior.
+  iplug::sample** _ProcessGateTriggerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
+                                           double sampleRate, bool active);
+  iplug::sample** _ProcessNAMStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
+  iplug::sample** _ProcessGateGainStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
+  iplug::sample** _ProcessSpeakerIRStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
+  iplug::sample** _ProcessDCBlockerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
+                                        double sampleRate);
   // Loads a NAM model and stores it to mStagedNAM
   // Returns an empty string on success, or an error message on failure.
   std::string _StageModel(const WDL_String& dspFile);
@@ -235,6 +275,7 @@ private:
   // Return status code so that error messages can be relayed if
   // it wasn't successful.
   dsp::wav::LoadReturnCode _StageIR(const WDL_String& irPath);
+  dsp::wav::LoadReturnCode _StageReverbIR(const WDL_String& irPath);
 
   bool _HaveModel() const { return this->mModel != nullptr; };
   // Prepare the input & output buffers
@@ -256,6 +297,9 @@ private:
   void _SetInputGain();
   void _SetOutputGain();
   void _ApplySlimParamToLoadedNAMs();
+  void _ApplyReverbIRParams();
+  void _ApplyPreEQParams();
+  void _ApplyPostEQParams();
 
   // See: Unserialization.cpp
   void _UnserializeApplyConfig(nlohmann::json& config);
@@ -308,7 +352,13 @@ private:
   std::atomic<bool> mModelCleared = false;
 
   // Tone stack modules
-  std::unique_ptr<dsp::tone_stack::AbstractToneStack> mToneStack;
+
+  // Neutral integration points for later v0.1 stages. These own no memory and
+  // deliberately return their input buffers unchanged.
+  danger::signal_chain::PreEQStage mPreEQStage;
+  danger::signal_chain::CompressorStage mCompressorStage;
+  danger::signal_chain::PostEQStage mPostEQStage;
+  danger::signal_chain::ReverbIRStage mReverbIRStage;
 
   // Post-IR filters
   recursive_linear_filter::HighPass mHighPass;
@@ -318,6 +368,9 @@ private:
   WDL_String mNAMPath;
   // Path to IR (.wav file)
   WDL_String mIRPath;
+  // Reverb IR is independent from the existing Speaker IR.
+  WDL_String mReverbIRPath;
+  std::atomic<bool> mReverbIRLoadFailed = false;
 
   WDL_String mHighLightColor{PluginColors::NAM_THEMECOLOR.ToColorCode()};
 

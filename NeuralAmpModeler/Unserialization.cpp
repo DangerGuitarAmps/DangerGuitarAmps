@@ -40,6 +40,15 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
   for (auto it = config.begin(); it != config.end(); ++it)
   {
     std::string name = it.key();
+    const bool deprecatedToneStackParam =
+      name == "Bass" || name == "Middle" || name == "Treble" || name == "ToneStack";
+    const bool deprecatedPostEQQParam = name == "PostEQBand1Q" || name == "PostEQBand2Q"
+                                        || name == "PostEQBand3Q" || name == "PostEQBand4Q";
+    if (deprecatedToneStackParam || deprecatedPostEQQParam)
+    {
+      iplug::Trace(TRACELOC, "%s DEPRECATED-IGNORED", name.c_str());
+      continue;
+    }
     iplug::IParam* pParam = getParamByName(name);
     if (pParam != nullptr)
     {
@@ -56,6 +65,7 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
 
   mNAMPath.Set(static_cast<std::string>(config["NAMPath"]).c_str());
   mIRPath.Set(static_cast<std::string>(config["IRPath"]).c_str());
+  mReverbIRPath.Set(static_cast<std::string>(config["ReverbIRPath"]).c_str());
 
   if (mNAMPath.GetLength())
   {
@@ -64,6 +74,21 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
   if (mIRPath.GetLength())
   {
     _StageIR(mIRPath);
+  }
+  if (mReverbIRPath.GetLength())
+  {
+    // A missing or unsupported Reverb IR is non-fatal. State restoration
+    // explicitly clears and bypasses the engine on failure.
+    if (_StageReverbIR(mReverbIRPath) != dsp::wav::LoadReturnCode::SUCCESS)
+    {
+      mReverbIRStage.RequestClear();
+      mReverbIRStage.SetBypassed(true);
+    }
+  }
+  else
+  {
+    mReverbIRStage.RequestClear();
+    mReverbIRStage.SetBypassed(true);
   }
 }
 
@@ -97,11 +122,273 @@ void _RenameKeys(nlohmann::json& j, std::unordered_map<std::string, std::string>
   }
 }
 
+// v0.7.19: four Post-EQ bands.
+int _GetConfigFrom_0_7_19(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel",
+                                      "PreEQBypass",
+                                      "PreEQLowCut",
+                                      "PreEQLowShelfGain",
+                                      "PreEQMidGain",
+                                      "PreEQMidFrequency",
+                                      "PreEQHighShelfGain",
+                                      "PostEQBypass",
+                                      "PostEQLowCut",
+                                      "PostEQBand1Frequency",
+                                      "PostEQBand1Gain",
+                                      "PostEQBand1Q",
+                                      "PostEQBand2Frequency",
+                                      "PostEQBand2Gain",
+                                      "PostEQBand2Q",
+                                      "PostEQBand3Frequency",
+                                      "PostEQBand3Gain",
+                                      "PostEQBand3Q",
+                                      "PostEQBand4Frequency",
+                                      "PostEQBand4Gain",
+                                      "PostEQBand4Q",
+                                      "PostEQHighCut"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  return pos;
+}
+
+void _UpdateConfigFrom_0_7_18(nlohmann::json& config)
+{
+  // v0.7.18 serialized a fifth Post-EQ band before High Cut. The reader has
+  // already consumed those values to preserve chunk alignment; they are not
+  // mapped into the four-band processor.
+  config.erase("PostEQBand5Frequency");
+  config.erase("PostEQBand5Gain");
+  config.erase("PostEQBand5Q");
+}
+
+// v0.7.18: five Post-EQ bands.
+int _GetConfigFrom_0_7_18(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel",
+                                      "PreEQBypass",
+                                      "PreEQLowCut",
+                                      "PreEQLowShelfGain",
+                                      "PreEQMidGain",
+                                      "PreEQMidFrequency",
+                                      "PreEQHighShelfGain",
+                                      "PostEQBypass",
+                                      "PostEQLowCut",
+                                      "PostEQBand1Frequency",
+                                      "PostEQBand1Gain",
+                                      "PostEQBand1Q",
+                                      "PostEQBand2Frequency",
+                                      "PostEQBand2Gain",
+                                      "PostEQBand2Q",
+                                      "PostEQBand3Frequency",
+                                      "PostEQBand3Gain",
+                                      "PostEQBand3Q",
+                                      "PostEQBand4Frequency",
+                                      "PostEQBand4Gain",
+                                      "PostEQBand4Q",
+                                      "PostEQBand5Frequency",
+                                      "PostEQBand5Gain",
+                                      "PostEQBand5Q",
+                                      "PostEQHighCut"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  _UpdateConfigFrom_0_7_18(config);
+  return pos;
+}
+
+void _UpdateConfigFrom_0_7_17(nlohmann::json& config)
+{
+  config["PostEQBypass"] = 1.0;
+  config["PostEQLowCut"] = 20.0;
+  config["PostEQBand1Frequency"] = 100.0;
+  config["PostEQBand1Gain"] = 0.0;
+  config["PostEQBand1Q"] = 1.0;
+  config["PostEQBand2Frequency"] = 400.0;
+  config["PostEQBand2Gain"] = 0.0;
+  config["PostEQBand2Q"] = 1.0;
+  config["PostEQBand3Frequency"] = 2500.0;
+  config["PostEQBand3Gain"] = 0.0;
+  config["PostEQBand3Q"] = 1.0;
+  config["PostEQBand4Frequency"] = 7000.0;
+  config["PostEQBand4Gain"] = 0.0;
+  config["PostEQBand4Q"] = 1.0;
+  config["PostEQHighCut"] = 20000.0;
+}
+
+// v0.7.17
+int _GetConfigFrom_0_7_17(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel",
+                                      "PreEQBypass",
+                                      "PreEQLowCut",
+                                      "PreEQLowShelfGain",
+                                      "PreEQMidGain",
+                                      "PreEQMidFrequency",
+                                      "PreEQHighShelfGain"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  _UpdateConfigFrom_0_7_17(config);
+  return pos;
+}
+
+void _UpdateConfigFrom_0_7_16(nlohmann::json& config)
+{
+  config["PreEQBypass"] = 1.0;
+  config["PreEQLowCut"] = 120.0;
+  config["PreEQLowShelfGain"] = 0.0;
+  config["PreEQMidGain"] = 0.0;
+  config["PreEQMidFrequency"] = 800.0;
+  config["PreEQHighShelfGain"] = 0.0;
+  _UpdateConfigFrom_0_7_17(config);
+}
+
+// v0.7.16: NAM path, Speaker IR path, Reverb IR path, then named parameters.
+int _GetConfigFrom_0_7_16(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
+{
+  int pos = startPos;
+  WDL_String path;
+  pos = chunk.GetStr(path, pos);
+  config["NAMPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["IRPath"] = std::string(path.Get());
+  pos = chunk.GetStr(path, pos);
+  config["ReverbIRPath"] = std::string(path.Get());
+
+  std::vector<std::string> paramNames{"Input",
+                                      "Threshold",
+                                      "Bass",
+                                      "Middle",
+                                      "Treble",
+                                      "Output",
+                                      "NoiseGateActive",
+                                      "ToneStack",
+                                      "IRToggle",
+                                      "CalibrateInput",
+                                      "InputCalibrationLevel",
+                                      "OutputMode",
+                                      "Slim",
+                                      "ReverbIRBypass",
+                                      "ReverbIRMix",
+                                      "ReverbIRPreDelay",
+                                      "ReverbIRLowCut",
+                                      "ReverbIRHighCut",
+                                      "ReverbIRWetLevel"};
+  for (const auto& name : paramNames)
+  {
+    double value = 0.0;
+    pos = chunk.Get(&value, pos);
+    config[name] = value;
+  }
+  _UpdateConfigFrom_0_7_16(config);
+  return pos;
+}
+
 // v0.7.14
 
 void _UpdateConfigFrom_0_7_14(nlohmann::json& config)
 {
-  // Fill me in once something changes!
+  // v0.7.15 and earlier have no Reverb IR path or parameters.
+  config["ReverbIRPath"] = "";
+  config["ReverbIRBypass"] = 1.0;
+  config["ReverbIRMix"] = 0.0;
+  config["ReverbIRPreDelay"] = 0.0;
+  config["ReverbIRLowCut"] = 20.0;
+  config["ReverbIRHighCut"] = 20000.0;
+  config["ReverbIRWetLevel"] = 0.0;
+  _UpdateConfigFrom_0_7_16(config);
 }
 
 int _GetConfigFrom_0_7_14(const iplug::IByteChunk& chunk, int startPos, nlohmann::json& config)
@@ -277,7 +564,23 @@ int NeuralAmpModeler::_UnserializeStateWithKnownVersion(const iplug::IByteChunk&
   _Version version(versionStr);
   // Act accordingly
   nlohmann::json config;
-  if (version >= _Version(0, 7, 14))
+  if (version >= _Version(0, 7, 19))
+  {
+    pos = _GetConfigFrom_0_7_19(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 18))
+  {
+    pos = _GetConfigFrom_0_7_18(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 17))
+  {
+    pos = _GetConfigFrom_0_7_17(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 16))
+  {
+    pos = _GetConfigFrom_0_7_16(chunk, pos, config);
+  }
+  else if (version >= _Version(0, 7, 14))
   {
     pos = _GetConfigFrom_0_7_14(chunk, pos, config);
   }
