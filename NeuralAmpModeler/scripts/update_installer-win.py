@@ -47,35 +47,43 @@ def main():
 
     config = parse_config(projectpath)
     bundle_name = config["BUNDLE_NAME"]
-    display_name = env_or_default("INSTALLER_DISPLAY_NAME", bundle_name)
+    display_name = env_or_default("INSTALLER_DISPLAY_NAME", config["PLUG_NAME"])
+    publisher = env_or_default("INSTALLER_APP_PUBLISHER", config["PLUG_MFR"])
+    semantic_version = config_string_define("PLUG_VERSION_STR")
+    display_version = semantic_version.replace("-rc", " RC")
     installer_suffix = " Demo" if demo else ""
-    default_output_name = display_name + installer_suffix + " Installer"
+    default_output_name = (
+        bundle_name + "-Windows-x64-Installer-v" + semantic_version
+    )
 
     setup_values = {
         "AppName": display_name,
+        "AppVerName": display_name + " " + display_version,
         "AppContact": env_or_default(
             "INSTALLER_APP_CONTACT",
-            "neuralampmodeler@gmail.com",
+            "https://github.com/DangerGuitarAmps/DangerGuitarAmps/issues",
         ),
         "AppCopyright": env_or_default(
             "INSTALLER_APP_COPYRIGHT",
-            "Copyright (C) 2022 Steven Atkinson",
+            "Copyright (C) 2026 Danger Audio",
         ),
-        "AppPublisher": env_or_default(
-            "INSTALLER_APP_PUBLISHER", "Steven Atkinson"
-        ),
+        "AppPublisher": publisher,
         "AppPublisherURL": env_or_default(
             "INSTALLER_APP_PUBLISHER_URL",
-            "https://www.neuralampmodeler.com/",
+            "https://github.com/DangerGuitarAmps/DangerGuitarAmps",
         ),
         "AppSupportURL": env_or_default(
             "INSTALLER_APP_SUPPORT_URL",
-            "https://www.neuralampmodeler.com/",
+            "https://github.com/DangerGuitarAmps/DangerGuitarAmps/issues",
         ),
-        "AppVersion": config_string_define("PLUG_VERSION_STR"),
+        "AppVersion": display_version,
         "VersionInfoVersion": config_string_define("PLUG_WINDOWS_VERSION_STR"),
-        "DefaultDirName": "{pf}\\" + display_name,
-        "DefaultGroupName": display_name,
+        "VersionInfoCompany": publisher,
+        "VersionInfoProductName": display_name,
+        "VersionInfoProductVersion": config_string_define(
+            "PLUG_WINDOWS_VERSION_STR"
+        ),
+        "DefaultDirName": "{autopf}\\" + publisher + "\\" + display_name,
         "OutputBaseFilename": env_or_default(
             "INSTALLER_OUTPUT_BASE_FILENAME", default_output_name
         ),

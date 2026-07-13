@@ -1,13 +1,11 @@
 Third-Party Notices
 ===================
 
-This product includes open-source and third-party software. The notices below
-are provided for the Neural Amp Modeler plug-ins and standalone application,
-including the VST3, Audio Unit, and standalone application installer outputs.
-
-Downstream product forks should review this file before release, update product
-source-code locations where appropriate, and add notices for any additional
-dependencies they ship.
+Danger Guitar Amps includes open-source and third-party software. It is an
+independent derivative built on the Neural Amp Modeler open-source project and
+is not endorsed by the upstream Neural Amp Modeler maintainers. The notices
+below apply to the Windows VST3 and preserve the attribution and licence terms
+of the inherited project and its dependencies.
 
 
 NeuralAmpModelerPlugin

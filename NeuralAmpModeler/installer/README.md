@@ -1,28 +1,39 @@
-# Installer Identity
+# Danger Guitar Amps Windows installer
 
-The checked-in Windows installer uses the Neural Amp Modeler product metadata. Before publishing a pre-built installer from a private release fork, replace `license.rtf` with the product's real license and override the installer identity if needed.
+The Windows installer uses Inno Setup 6 and the authoritative definition in
+`DangerGuitarAmps.iss`. It packages only the validated x64 VST3 bundle from:
 
-The Windows distribution script calls `scripts/update_installer-win.py`, which accepts these environment variable overrides:
+```text
+NeuralAmpModeler/build-win/DangerGuitarAmps.vst3
+```
 
-- `INSTALLER_DISPLAY_NAME`
-- `INSTALLER_APP_CONTACT`
-- `INSTALLER_APP_COPYRIGHT`
-- `INSTALLER_APP_PUBLISHER`
-- `INSTALLER_APP_PUBLISHER_URL`
-- `INSTALLER_APP_SUPPORT_URL`
-- `INSTALLER_OUTPUT_BASE_FILENAME`
-- `INSTALLER_WELCOME_LABEL`
-- `INSTALLER_SETUP_WINDOW_TITLE`
+The bundle is installed to the system VST3 directory:
 
-The macOS installer package identifiers default to `com.StevenAtkinson.*`. Set `INSTALLER_PKG_ID_PREFIX` to use your own reverse-DNS prefix, for example `com.example.myproduct`.
+```text
+C:\Program Files\Common Files\VST3\DangerGuitarAmps.vst3
+```
 
-`ThirdPartyNotices.txt` is installed with the standalone application and inside the VST3/AU bundle resources. Keep it current when adding, removing, or replacing dependencies. Private/product forks should update any source-availability language that points at this public repository.
+The fixed Inno Setup `AppId` is:
 
-For notarized macOS release builds, `scripts/makedist-mac.sh` also accepts:
+```text
+{480062A0-2F26-47C3-A851-D9C5CB0BBD7E}
+```
 
-- `NOTARIZE_BUNDLE_ID`
-- `NOTARIZE_BUNDLE_ID_DEMO`
-- `APP_SPECIFIC_ID`
-- `APP_SPECIFIC_PWD`
+This is the stable Danger Guitar Amps upgrade and uninstall identity. Do not
+change it for routine V1.x releases. It is deliberately unrelated to the
+official Neural Amp Modeler installer identity.
 
-These settings only affect installer/package identity. Plug-in identity, DAW compatibility, and saved-session compatibility are controlled elsewhere, including `config.h`, Xcode bundle identifiers, and plug-in format metadata.
+Build from the repository root with:
+
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+  "NeuralAmpModeler\installer\DangerGuitarAmps.iss"
+```
+
+The output is written to `release-artifacts`. The RC2 installer is unsigned and
+must not be installed automatically as part of a build.
+
+The root `LICENSE` and `ThirdPartyNotices.txt` are shown or installed by the
+installer. Preserve all upstream Neural Amp Modeler and dependency attribution.
+The installer creates no desktop or Start Menu shortcuts and does not install
+models or impulse responses.
