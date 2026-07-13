@@ -1,7 +1,7 @@
 #define PLUG_NAME "Danger Guitar Amps"
 #define PLUG_MFR "Danger Audio"
-#define PLUG_VERSION_HEX 0x00000711
-#define PLUG_VERSION_STR "0.7.17"
+#define PLUG_VERSION_HEX 0x00000713
+#define PLUG_VERSION_STR "0.7.19"
 #define PLUG_UNIQUE_ID 'DGAm'
 #define PLUG_MFR_ID 'DnGA'
 #define PLUG_URL_STR "https://github.com/sdatkinson/NeuralAmpModelerPlugin"
@@ -28,7 +28,7 @@
 #define PLUG_DOES_STATE_CHUNKS 0
 #define PLUG_HAS_UI 1
 #define PLUG_WIDTH 600
-#define PLUG_HEIGHT 730
+#define PLUG_HEIGHT 986
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 #define PLUG_HOST_RESIZE 0

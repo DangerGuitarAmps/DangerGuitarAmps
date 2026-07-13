@@ -10,7 +10,6 @@
 
 #include "Colors.h"
 #include "SignalChain.h"
-#include "ToneStack.h"
 
 #include "IPlug_include_in_plug_hdr.h"
 #include "ISender.h"
@@ -62,10 +61,25 @@ enum EParams
   kPreEQMidGain,
   kPreEQMidFrequency,
   kPreEQHighShelfGain,
+  // Post-EQ parameters must remain appended for session compatibility.
+  kPostEQBypass,
+  kPostEQLowCut,
+  kPostEQBand1Frequency,
+  kPostEQBand1Gain,
+  kPostEQBand1Q,
+  kPostEQBand2Frequency,
+  kPostEQBand2Gain,
+  kPostEQBand2Q,
+  kPostEQBand3Frequency,
+  kPostEQBand3Gain,
+  kPostEQBand3Q,
+  kPostEQBand4Frequency,
+  kPostEQBand4Gain,
+  kPostEQBand4Q,
+  kPostEQHighCut,
   kNumParams
 };
 
-const int numKnobs = 6;
 
 enum ECtrlTags
 {
@@ -245,14 +259,12 @@ private:
   // Sizes based on mInputArray
   size_t _GetBufferNumChannels() const;
   size_t _GetBufferNumFrames() const;
-  void _InitToneStack();
   // Signal-chain stage boundaries. The gate detector and gain applicator remain
   // split around NAM to preserve the current audible behavior.
   iplug::sample** _ProcessGateTriggerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
                                            double sampleRate, bool active);
   iplug::sample** _ProcessNAMStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
   iplug::sample** _ProcessGateGainStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
-  iplug::sample** _ProcessToneStackStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
   iplug::sample** _ProcessSpeakerIRStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
   iplug::sample** _ProcessDCBlockerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
                                         double sampleRate);
@@ -287,6 +299,7 @@ private:
   void _ApplySlimParamToLoadedNAMs();
   void _ApplyReverbIRParams();
   void _ApplyPreEQParams();
+  void _ApplyPostEQParams();
 
   // See: Unserialization.cpp
   void _UnserializeApplyConfig(nlohmann::json& config);
@@ -339,12 +352,12 @@ private:
   std::atomic<bool> mModelCleared = false;
 
   // Tone stack modules
-  std::unique_ptr<dsp::tone_stack::AbstractToneStack> mToneStack;
 
   // Neutral integration points for later v0.1 stages. These own no memory and
   // deliberately return their input buffers unchanged.
   danger::signal_chain::PreEQStage mPreEQStage;
   danger::signal_chain::CompressorStage mCompressorStage;
+  danger::signal_chain::PostEQStage mPostEQStage;
   danger::signal_chain::ReverbIRStage mReverbIRStage;
 
   // Post-IR filters

@@ -23,6 +23,11 @@ using namespace igraphics;
 const double kDCBlockerFrequency = 5.0;
 
 // Styles
+const float kControlLabelTextSize = 17.0f;
+const float kSectionHeadingTextSize = 15.0f;
+const float kSectionHeadingTopPadding = 4.0f;
+const float kSectionHeadingHeight = 18.0f;
+const float kSectionHeadingBottomPadding = 4.0f;
 const IVColorSpec colorSpec{
   DEFAULT_BGCOLOR, // Background
   PluginColors::NAM_THEMECOLOR, // Foreground
@@ -39,7 +44,7 @@ const IVStyle style =
   IVStyle{true, // Show label
           true, // Show value
           colorSpec,
-          {DEFAULT_TEXT_SIZE + 3.f, EVAlign::Middle, PluginColors::NAM_THEMEFONTCOLOR}, // Knob label text5
+          {kControlLabelTextSize, EVAlign::Middle, PluginColors::NAM_THEMEFONTCOLOR}, // Knob label text
           {DEFAULT_TEXT_SIZE + 3.f, EVAlign::Bottom, PluginColors::NAM_THEMEFONTCOLOR}, // Knob value text
           DEFAULT_HIDE_CURSOR,
           DEFAULT_DRAW_FRAME,
@@ -55,8 +60,31 @@ const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(27, PluginColors::O
                              .WithShadowOffset(1.f);
 const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(10, PluginColors::NAM_3, "Roboto-Regular"))
                                    .WithDrawFrame(false);
-const IVStyle reverbControlStyle =
-  style.WithLabelText(style.labelText.WithSize(13.f)).WithValueText(style.valueText.WithSize(13.f));
+const IVStyle sectionHeadingStyle =
+  DEFAULT_STYLE.WithValueText(IText(kSectionHeadingTextSize, PluginColors::OFF_WHITE, "Roboto-Regular"))
+    .WithDrawFrame(false)
+    .WithDrawShadows(false);
+const IVStyle sectionControlStyle =
+  style.WithLabelText(style.labelText.WithSize(kControlLabelTextSize)).WithValueText(style.valueText.WithSize(13.f));
+const float kSectionKnobDiameter = 80.0f;
+const float kSectionBypassX = 55.0f;
+const float kSectionBypassWidth = 100.0f;
+const float kSectionBypassHeight = 40.0f;
+const float kCompactControlTextSize = 11.0f;
+const IVStyle compactControlStyle = style.WithShowLabel(false)
+                                      .WithDrawShadows(false)
+                                      .WithValueText(style.valueText.WithSize(kCompactControlTextSize)
+                                                       .WithVAlign(EVAlign::Bottom));
+const IVStyle postEQTextStyle = DEFAULT_STYLE
+                                  .WithValueText(IText(kControlLabelTextSize, PluginColors::NAM_THEMEFONTCOLOR,
+                                                       "Roboto-Regular"))
+                                  .WithDrawFrame(false)
+                                  .WithDrawShadows(false);
+const IVStyle postEQCutSliderStyle = compactControlStyle
+                                       .WithColor(kFG, PluginColors::NAM_3)
+                                       .WithColor(kPR, PluginColors::NAM_THEMECOLOR)
+                                       .WithColor(kFR, PluginColors::OFF_WHITE)
+                                       .WithFrameThickness(1.0f);
 const IVStyle radioButtonStyle =
   style
     .WithColor(EVColor::kON, PluginColors::NAM_THEMECOLOR) // Pressed buttons and their labels
@@ -83,7 +111,6 @@ const double kDefaultInputCalibrationLevel = 12.0;
 NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
-  _InitToneStack();
   nam::activations::Activation::enable_fast_tanh();
   GetParam(kInputLevel)->InitGain("Input", 0.0, -20.0, 20.0, 0.1);
   GetParam(kToneBass)->InitDouble("Bass", 5.0, 0.0, 10.0, 0.1);
@@ -113,6 +140,22 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kPreEQMidFrequency)->InitDouble("PreEQMidFrequency", 800.0, 150.0, 4000.0, 1.0, "Hz");
   GetParam(kPreEQHighShelfGain)->InitGain("PreEQHighShelfGain", 0.0, -12.0, 12.0, 0.1);
   _ApplyPreEQParams();
+  GetParam(kPostEQBypass)->InitBool("PostEQBypass", true);
+  GetParam(kPostEQLowCut)->InitDouble("PostEQLowCut", 20.0, 20.0, 500.0, 1.0, "Hz");
+  GetParam(kPostEQBand1Frequency)->InitDouble("PostEQBand1Frequency", 100.0, 40.0, 400.0, 1.0, "Hz");
+  GetParam(kPostEQBand1Gain)->InitGain("PostEQBand1Gain", 0.0, -18.0, 12.0, 0.1);
+  GetParam(kPostEQBand1Q)->InitDouble("PostEQBand1Q", 1.0, 0.3, 6.0, 0.01);
+  GetParam(kPostEQBand2Frequency)->InitDouble("PostEQBand2Frequency", 400.0, 120.0, 2000.0, 1.0, "Hz");
+  GetParam(kPostEQBand2Gain)->InitGain("PostEQBand2Gain", 0.0, -18.0, 12.0, 0.1);
+  GetParam(kPostEQBand2Q)->InitDouble("PostEQBand2Q", 1.0, 0.3, 6.0, 0.01);
+  GetParam(kPostEQBand3Frequency)->InitDouble("PostEQBand3Frequency", 2500.0, 500.0, 7000.0, 1.0, "Hz");
+  GetParam(kPostEQBand3Gain)->InitGain("PostEQBand3Gain", 0.0, -18.0, 12.0, 0.1);
+  GetParam(kPostEQBand3Q)->InitDouble("PostEQBand3Q", 1.0, 0.3, 6.0, 0.01);
+  GetParam(kPostEQBand4Frequency)->InitDouble("PostEQBand4Frequency", 7000.0, 2000.0, 14000.0, 1.0, "Hz");
+  GetParam(kPostEQBand4Gain)->InitGain("PostEQBand4Gain", 0.0, -18.0, 12.0, 0.1);
+  GetParam(kPostEQBand4Q)->InitDouble("PostEQBand4Q", 1.0, 0.3, 6.0, 0.01);
+  GetParam(kPostEQHighCut)->InitDouble("PostEQHighCut", 20000.0, 3000.0, 20000.0, 1.0, "Hz");
+  _ApplyPostEQParams();
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
@@ -165,54 +208,68 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto productTitleArea = titleArea.GetReducedFromLeft(48.0f).GetFromTop(38.0f);
     const auto productLegendArea = titleArea.GetReducedFromLeft(48.0f).GetFromBottom(17.0f);
 
-    // Areas for knobs
-    const auto knobsPad = 20.0f;
-    const auto knobsExtraSpaceBelowTitle = 13.0f;
-    const auto singleKnobPad = -2.0f;
-    const auto knobsArea = contentArea.GetFromTop(NAM_KNOB_HEIGHT)
-                             .GetReducedFromLeft(knobsPad)
-                             .GetReducedFromRight(knobsPad)
-                             .GetVShifted(titleHeight + knobsExtraSpaceBelowTitle);
-    const auto inputKnobArea = knobsArea.GetGridCell(0, kInputLevel, 1, numKnobs).GetPadded(-singleKnobPad);
-    const auto noiseGateArea = knobsArea.GetGridCell(0, kNoiseGateThreshold, 1, numKnobs).GetPadded(-singleKnobPad);
-    const auto bassKnobArea = knobsArea.GetGridCell(0, kToneBass, 1, numKnobs).GetPadded(-singleKnobPad);
-    const auto midKnobArea = knobsArea.GetGridCell(0, kToneMid, 1, numKnobs).GetPadded(-singleKnobPad);
-    const auto trebleKnobArea = knobsArea.GetGridCell(0, kToneTreble, 1, numKnobs).GetPadded(-singleKnobPad);
-    const auto outputKnobArea = knobsArea.GetGridCell(0, kOutputLevel, 1, numKnobs).GetPadded(-singleKnobPad);
-
-    const auto ngToggleArea =
-      noiseGateArea.GetVShifted(noiseGateArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
-    const auto eqToggleArea = midKnobArea.GetVShifted(midKnobArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
+    // Shared section-title geometry keeps headings clear of panel borders.
+    const auto sectionTitleArea = [](const IRECT& section) {
+      return IRECT(section.L, section.T + kSectionHeadingTopPadding, section.R,
+                   section.T + kSectionHeadingTopPadding + kSectionHeadingHeight);
+    };
+    const auto topSectionArea = IRECT(45.0f, 82.0f, b.R - 45.0f, 260.0f);
+    const auto inputKnobArea = IRECT(110.0f, 111.0f, 190.0f, 231.0f);
+    const auto gateSwitchArea = IRECT(225.0f, 121.0f, 275.0f, 221.0f);
+    const auto noiseGateArea = IRECT(310.0f, 111.0f, 390.0f, 231.0f);
+    const auto outputKnobArea = IRECT(410.0f, 111.0f, 490.0f, 231.0f);
+    const auto topSectionTitleArea = sectionTitleArea(topSectionArea);
 
     // Compact Pre-EQ panel. The logical render and hit rectangles are the
     // same, so scale-mode resizing preserves control alignment.
-    const auto preEQSectionArea = IRECT(45.0f, 286.0f, b.R - 45.0f, 430.0f);
-    const auto preEQTitleArea = preEQSectionArea.GetFromTop(18.0f);
-    const auto preEQBypassArea = IRECT(55.0f, 326.0f, 145.0f, 366.0f);
-    const auto preEQKnobsArea = IRECT(155.0f, 310.0f, b.R - 45.0f, 430.0f);
+    const auto preEQSectionArea = IRECT(45.0f, 268.0f, b.R - 45.0f, 412.0f);
+    const auto preEQTitleArea = sectionTitleArea(preEQSectionArea);
+    const auto sectionBypassArea = [](const float top) {
+      return IRECT(kSectionBypassX, top, kSectionBypassX + kSectionBypassWidth, top + kSectionBypassHeight);
+    };
+    const auto preEQBypassArea = sectionBypassArea(308.0f);
+    const auto preEQKnobsArea = IRECT(155.0f, preEQTitleArea.B + kSectionHeadingBottomPadding,
+                                      b.R - 45.0f, 412.0f);
     const auto preEQLowCutArea = preEQKnobsArea.GetGridCell(0, 0, 1, 5);
     const auto preEQLowShelfArea = preEQKnobsArea.GetGridCell(0, 1, 1, 5);
-    const auto preEQMidGainArea = preEQKnobsArea.GetGridCell(0, 2, 1, 5);
-    const auto preEQMidFrequencyArea = preEQKnobsArea.GetGridCell(0, 3, 1, 5);
+    const auto preEQMidFrequencyArea = preEQKnobsArea.GetGridCell(0, 2, 1, 5);
+    const auto preEQMidGainArea = preEQKnobsArea.GetGridCell(0, 3, 1, 5);
     const auto preEQHighShelfArea = preEQKnobsArea.GetGridCell(0, 4, 1, 5);
 
     // Areas for model and IR
     const auto fileWidth = 200.0f;
-    const auto irYOffset = 38.0f;
-    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 449.0f, b.MW() + fileWidth * 0.5f, 479.0f);
+    const auto irYOffset = 34.0f;
+    const auto modelSectionArea = IRECT(45.0f, 420.0f, b.R - 45.0f, 520.0f);
+    const auto modelSectionTitleArea = sectionTitleArea(modelSectionArea);
+    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 450.0f, b.MW() + fileWidth * 0.5f, 480.0f);
     const auto slimIconArea =
       IRECT(modelArea.R + 6.f, modelArea.MH() - 14.f, modelArea.R + 6.f + 2.f * 28.f, modelArea.MH() + 14.f);
     const auto modelIconArea = modelArea.GetFromLeft(30).GetTranslated(-40, 10);
     const auto irArea = modelArea.GetVShifted(irYOffset);
     const auto irSwitchArea = irArea.GetFromLeft(30.0f).GetHShifted(-40.0f).GetScaledAboutCentre(0.6f);
 
+    // Six-column Post-EQ panel: cut filters at the edges and one grouped
+    // frequency/gain/Q column per parametric band.
+    const auto postEQSectionArea = IRECT(45.0f, 528.0f, b.R - 45.0f, 778.0f);
+    const auto postEQTitleArea = sectionTitleArea(postEQSectionArea);
+    const auto postEQBypassArea = sectionBypassArea(530.0f);
+    const auto postEQColumnsArea = IRECT(105.0f, 556.0f, b.R - 55.0f, 734.0f);
+    const auto postEQBandLabelsArea = IRECT(postEQColumnsArea.L, 552.0f, postEQColumnsArea.R, 570.0f);
+    const auto postEQFrequencyRow = IRECT(postEQColumnsArea.L, 570.0f, postEQColumnsArea.R, 650.0f);
+    const auto postEQGainRow = IRECT(postEQColumnsArea.L, 650.0f, postEQColumnsArea.R, 734.0f);
+    const auto postEQLowCutSliderArea = IRECT(45.0f, 745.0f, 285.0f, 776.0f);
+    const auto postEQHighCutSliderArea = IRECT(315.0f, 745.0f, 555.0f, 776.0f);
+    const auto primaryPostEQArea = [](const IRECT& row, const int column) {
+      return row.GetGridCell(0, column, 1, 4).GetCentredInside(kSectionKnobDiameter, row.H());
+    };
+
     // Compact Reverb IR panel. Render and hit rectangles use the same logical
     // bounds so scale-mode resizing preserves alignment.
-    const auto reverbSectionArea = IRECT(45.0f, 530.0f, b.R - 45.0f, 712.0f);
-    const auto reverbTitleArea = reverbSectionArea.GetFromTop(18.0f);
-    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 550.0f, b.MW() + 100.0f, 580.0f);
-    const auto reverbBypassArea = IRECT(55.0f, 548.0f, 165.0f, 588.0f);
-    const auto reverbKnobsArea = IRECT(85.0f, 590.0f, b.R - 85.0f, 710.0f);
+    const auto reverbSectionArea = IRECT(45.0f, 786.0f, b.R - 45.0f, 968.0f);
+    const auto reverbTitleArea = sectionTitleArea(reverbSectionArea);
+    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 812.0f, b.MW() + 100.0f, 842.0f);
+    const auto reverbBypassArea = sectionBypassArea(812.0f);
+    const auto reverbKnobsArea = IRECT(85.0f, 846.0f, b.R - 85.0f, 966.0f);
     const auto reverbMixArea = reverbKnobsArea.GetGridCell(0, 0, 1, 5);
     const auto reverbPreDelayArea = reverbKnobsArea.GetGridCell(0, 1, 1, 5);
     const auto reverbLowCutArea = reverbKnobsArea.GetGridCell(0, 2, 1, 5);
@@ -220,8 +277,8 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto reverbWetLevelArea = reverbKnobsArea.GetGridCell(0, 4, 1, 5);
 
     // Areas for meters
-    const auto inputMeterArea = IRECT(10.0f, 75.0f, 40.0f, 275.0f);
-    const auto outputMeterArea = IRECT(b.R - 40.0f, 75.0f, b.R - 10.0f, 275.0f);
+    const auto inputMeterArea = IRECT(10.0f, 82.0f, 40.0f, 260.0f);
+    const auto outputMeterArea = IRECT(b.R - 40.0f, 82.0f, b.R - 10.0f, 260.0f);
 
     // Misc Areas
     const auto settingsButtonArea = CornerButtonArea(b);
@@ -298,7 +355,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     pGraphics->AttachControl(
       new IVLabelControl(productLegendArea, "MODEL AMPLIFIER  //  IMPULSE CABINET", shellLegendStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
-    pGraphics->AttachControl(new IVLabelControl(preEQTitleArea, "PRE-EQ", shellLegendStyle));
+    pGraphics->AttachControl(new IVLabelControl(topSectionTitleArea, "INPUT / GATE / OUTPUT", sectionHeadingStyle));
+    pGraphics->AttachControl(new IVLabelControl(preEQTitleArea, "PRE-EQ", sectionHeadingStyle));
+    pGraphics->AttachControl(new IVLabelControl(modelSectionTitleArea, "MODEL / SPEAKER IR", sectionHeadingStyle));
 
 #ifdef NAM_PICK_DIRECTORY
     const std::string defaultNamFileString = "Select model directory...";
@@ -345,66 +404,108 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                                 fileSVG, crossSVG, leftArrowSVG, rightArrowSVG, fileBackgroundBitmap, globeSVG,
                                 "Get IRs", getUrl),
       kCtrlTagIRFileBrowser);
-    pGraphics->AttachControl(new IVLabelControl(reverbTitleArea, "REVERB IR", shellLegendStyle));
+    pGraphics->AttachControl(new IVLabelControl(reverbTitleArea, "REVERB IR", sectionHeadingStyle));
     pGraphics->AttachControl(
       new NAMFileBrowserControl(reverbBrowserArea, kMsgTagClearReverbIR, defaultReverbIRString.c_str(), "wav",
                                 loadReverbIRCompletionHandler, style, fileSVG, crossSVG, leftArrowSVG, rightArrowSVG,
                                 fileBackgroundBitmap, globeSVG, "Get IRs", getUrl),
       kCtrlTagReverbIRFileBrowser);
     pGraphics->AttachControl(
-      new NAMSwitchControl(reverbBypassArea, kReverbIRBypass, "Bypass = Dry", reverbControlStyle,
+      new NAMSwitchControl(reverbBypassArea, kReverbIRBypass, "Bypass", sectionControlStyle,
                            switchHandleBitmap));
     pGraphics->AttachControl(
-      new NAMSwitchControl(preEQBypassArea, kPreEQBypass, "Bypass = Dry", reverbControlStyle,
+      new NAMSwitchControl(preEQBypassArea, kPreEQBypass, "Bypass", sectionControlStyle,
                            switchHandleBitmap));
     pGraphics->AttachControl(
-      new NAMSwitchControl(ngToggleArea, kNoiseGateActive, "Noise Gate", style, switchHandleBitmap));
-    pGraphics->AttachControl(new NAMSwitchControl(eqToggleArea, kEQActive, "EQ", style, switchHandleBitmap));
+      new NAMSwitchControl(postEQBypassArea, kPostEQBypass, "Bypass", sectionControlStyle,
+                           switchHandleBitmap));
+    pGraphics->AttachControl(
+      new NAMSwitchControl(gateSwitchArea, kNoiseGateActive, "Gate", style, switchHandleBitmap,
+                           EDirection::Vertical));
 
     // The knobs
     pGraphics->AttachControl(new NAMKnobControl(inputKnobArea, kInputLevel, "", style, knobBackgroundBitmap));
     pGraphics->AttachControl(new NAMKnobControl(noiseGateArea, kNoiseGateThreshold, "", style, knobBackgroundBitmap));
-    pGraphics->AttachControl(
-      new NAMKnobControl(bassKnobArea, kToneBass, "", style, knobBackgroundBitmap), -1, "EQ_KNOBS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(midKnobArea, kToneMid, "", style, knobBackgroundBitmap), -1, "EQ_KNOBS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(trebleKnobArea, kToneTreble, "", style, knobBackgroundBitmap), -1, "EQ_KNOBS");
     pGraphics->AttachControl(new NAMKnobControl(outputKnobArea, kOutputLevel, "", style, knobBackgroundBitmap));
-    pGraphics->AttachControl(
-      new NAMKnobControl(preEQLowCutArea, kPreEQLowCut, "Low cut", reverbControlStyle, knobBackgroundBitmap), -1,
-      "PRE_EQ_CONTROLS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(preEQLowShelfArea, kPreEQLowShelfGain, "Low shelf", reverbControlStyle,
-                         knobBackgroundBitmap),
-      -1, "PRE_EQ_CONTROLS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(preEQMidGainArea, kPreEQMidGain, "Mid gain", reverbControlStyle, knobBackgroundBitmap), -1,
-      "PRE_EQ_CONTROLS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(preEQMidFrequencyArea, kPreEQMidFrequency, "Mid freq", reverbControlStyle,
-                         knobBackgroundBitmap),
-      -1, "PRE_EQ_CONTROLS");
-    pGraphics->AttachControl(
-      new NAMKnobControl(preEQHighShelfArea, kPreEQHighShelfGain, "High shelf", reverbControlStyle,
-                         knobBackgroundBitmap),
-      -1, "PRE_EQ_CONTROLS");
+    const auto attachPreEQKnob = [&](const IRECT& area, const int paramIdx, const char* label,
+                                     const char* tooltip) {
+      auto* control = new NAMKnobControl(area, paramIdx, label, sectionControlStyle, knobBackgroundBitmap);
+      control->SetTooltip(tooltip);
+      pGraphics->AttachControl(control, -1, "PRE_EQ_CONTROLS");
+    };
+    attachPreEQKnob(preEQLowCutArea, kPreEQLowCut, "Low Cut",
+                    "Removes low frequencies before the amp model.");
+    attachPreEQKnob(preEQLowShelfArea, kPreEQLowShelfGain, "Body",
+                    "Shapes low-end weight and fullness before the amp model.");
+    attachPreEQKnob(preEQMidFrequencyArea, kPreEQMidFrequency, "Mid Freq",
+                    "Selects the frequency controlled by Mid Gain.");
+    attachPreEQKnob(preEQMidGainArea, kPreEQMidGain, "Mid Gain",
+                    "Cuts or boosts the selected mid frequency before the amp model.");
+    attachPreEQKnob(preEQHighShelfArea, kPreEQHighShelfGain, "Attack",
+                    "Shapes pick definition and upper-frequency drive into the amp model.");
     const bool preEQBypassed = GetParam(kPreEQBypass)->Bool();
     pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
                                  [preEQBypassed](IControl* pControl) { pControl->SetDisabled(preEQBypassed); });
     pGraphics->AttachControl(
-      new NAMKnobControl(reverbMixArea, kReverbIRMix, "Mix", reverbControlStyle, knobBackgroundBitmap), -1,
+      new IVSliderControl(postEQLowCutSliderArea, kPostEQLowCut, " ", postEQCutSliderStyle, true,
+                          EDirection::Horizontal, DEFAULT_GEARING, 8.0f, 2.0f, true),
+      -1, "POST_EQ_CONTROLS");
+    pGraphics->AttachControl(
+      new IVSliderControl(postEQHighCutSliderArea, kPostEQHighCut, " ", postEQCutSliderStyle, true,
+                          EDirection::Horizontal, DEFAULT_GEARING, 8.0f, 2.0f, true),
+      -1, "POST_EQ_CONTROLS");
+    const std::array<int, 4> postEQFrequencyParams{kPostEQBand1Frequency, kPostEQBand2Frequency,
+                                                   kPostEQBand3Frequency, kPostEQBand4Frequency};
+    const std::array<int, 4> postEQGainParams{kPostEQBand1Gain, kPostEQBand2Gain, kPostEQBand3Gain,
+                                              kPostEQBand4Gain};
+    for (int band = 0; band < 4; ++band)
+    {
+      const int column = band;
+      pGraphics->AttachControl(
+        new NAMPostEQBitmapKnobControl(primaryPostEQArea(postEQFrequencyRow, column), postEQFrequencyParams[band],
+                                       kSectionKnobDiameter,
+                                       compactControlStyle, knobBackgroundBitmap),
+        -1, "POST_EQ_CONTROLS");
+      pGraphics->AttachControl(
+        new NAMPostEQBitmapKnobControl(primaryPostEQArea(postEQGainRow, column), postEQGainParams[band],
+                                       kSectionKnobDiameter, compactControlStyle, knobBackgroundBitmap),
+        -1, "POST_EQ_CONTROLS");
+    }
+    // Typography is attached after all Post-EQ knob graphics.
+    pGraphics->AttachControl(new IVLabelControl(postEQTitleArea, "POST-EQ", sectionHeadingStyle));
+    const std::array<const char*, 4> postEQBandLabels{"Low", "Low Mid", "High Mid", "High"};
+    for (int band = 0; band < 4; ++band)
+    {
+      pGraphics->AttachControl(new IVLabelControl(postEQBandLabelsArea.GetGridCell(0, band, 1, 4),
+                                                  postEQBandLabels[band], postEQTextStyle));
+    }
+    pGraphics->AttachControl(new IVLabelControl(IRECT(25.0f, postEQGainRow.T, 100.0f, postEQGainRow.B), "Gain",
+                                                postEQTextStyle));
+    pGraphics->AttachControl(new IVLabelControl(IRECT(25.0f, postEQFrequencyRow.T, 100.0f,
+                                                      postEQFrequencyRow.B),
+                                                "Freq", postEQTextStyle));
+    pGraphics->AttachControl(new IVLabelControl(IRECT(postEQLowCutSliderArea.L, 734.0f,
+                                                      postEQLowCutSliderArea.R, postEQLowCutSliderArea.T),
+                                                "Low Cut", postEQTextStyle));
+    pGraphics->AttachControl(new IVLabelControl(IRECT(postEQHighCutSliderArea.L, 734.0f,
+                                                      postEQHighCutSliderArea.R, postEQHighCutSliderArea.T),
+                                                "High Cut", postEQTextStyle));
+    const bool postEQBypassed = GetParam(kPostEQBypass)->Bool();
+    pGraphics->ForControlInGroup("POST_EQ_CONTROLS",
+                                 [postEQBypassed](IControl* pControl) { pControl->SetDisabled(postEQBypassed); });
+    pGraphics->AttachControl(
+      new NAMKnobControl(reverbMixArea, kReverbIRMix, "Mix", sectionControlStyle, knobBackgroundBitmap), -1,
       "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbPreDelayArea, kReverbIRPreDelay, "Pre-delay", reverbControlStyle,
+    pGraphics->AttachControl(new NAMKnobControl(reverbPreDelayArea, kReverbIRPreDelay, "Pre-Delay", sectionControlStyle,
                                                 knobBackgroundBitmap),
                              -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbLowCutArea, kReverbIRLowCut, "Low cut", reverbControlStyle,
+    pGraphics->AttachControl(new NAMKnobControl(reverbLowCutArea, kReverbIRLowCut, "Low Cut", sectionControlStyle,
                                                 knobBackgroundBitmap),
                              -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbHighCutArea, kReverbIRHighCut, "High cut", reverbControlStyle,
+    pGraphics->AttachControl(new NAMKnobControl(reverbHighCutArea, kReverbIRHighCut, "High Cut", sectionControlStyle,
                                                 knobBackgroundBitmap),
                              -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbWetLevelArea, kReverbIRWetLevel, "Wet level", reverbControlStyle,
+    pGraphics->AttachControl(new NAMKnobControl(reverbWetLevelArea, kReverbIRWetLevel, "Wet Level", sectionControlStyle,
                                                 knobBackgroundBitmap),
                              -1, "REVERB_CONTROLS");
     const bool reverbBypassed = GetParam(kReverbIRBypass)->Bool();
@@ -469,7 +570,6 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   _ProcessInput(inputs, numFrames, numChannelsExternalIn, numChannelsInternal);
   _ApplyDSPStaging();
   const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
-  const bool toneStackActive = GetParam(kEQActive)->Value();
 
   sample** gateTriggerOutput =
     _ProcessGateTriggerStage(mInputPointers, numChannelsInternal, numFrames, sampleRate, noiseGateActive);
@@ -477,10 +577,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   sample** compressorOutput = mCompressorStage.Process(preEQOutput, numChannelsInternal, numFrames);
   sample** namOutput = _ProcessNAMStage(compressorOutput, numChannelsInternal, numFrames);
   sample** gateGainOutput = _ProcessGateGainStage(namOutput, numChannelsInternal, numFrames, noiseGateActive);
-  sample** toneStackOutput =
-    _ProcessToneStackStage(gateGainOutput, numChannelsInternal, numFrames, toneStackActive);
-  sample** speakerIROutput = _ProcessSpeakerIRStage(toneStackOutput, numChannelsInternal, numFrames);
-  sample** reverbIROutput = mReverbIRStage.Process(speakerIROutput, numChannelsInternal, numFrames);
+  sample** speakerIROutput = _ProcessSpeakerIRStage(gateGainOutput, numChannelsInternal, numFrames);
+  sample** postEQOutput = mPostEQStage.Process(speakerIROutput, numChannelsInternal, numFrames);
+  sample** reverbIROutput = mReverbIRStage.Process(postEQOutput, numChannelsInternal, numFrames);
   sample** hpfPointers = _ProcessDCBlockerStage(reverbIROutput, numChannelsInternal, numFrames, sampleRate);
 
   // restore previous floating point state
@@ -529,14 +628,6 @@ sample** NeuralAmpModeler::_ProcessGateGainStage(sample** inputs, const size_t n
   return active ? mNoiseGateGain.Process(inputs, numChannels, numFrames) : inputs;
 }
 
-sample** NeuralAmpModeler::_ProcessToneStackStage(sample** inputs, const size_t numChannels, const size_t numFrames,
-                                                  const bool active)
-{
-  return (active && mToneStack != nullptr)
-           ? mToneStack->Process(inputs, static_cast<int>(numChannels), static_cast<int>(numFrames))
-           : inputs;
-}
-
 sample** NeuralAmpModeler::_ProcessSpeakerIRStage(sample** inputs, const size_t numChannels, const size_t numFrames)
 {
   return (mIR != nullptr && GetParam(kIRToggle)->Value()) ? mIR->Process(inputs, numChannels, numFrames) : inputs;
@@ -566,7 +657,7 @@ void NeuralAmpModeler::OnReset()
   // If there is a model or IR loaded, they need to be checked for resampling.
   _ResetModelAndIR(sampleRate, GetBlockSize());
   mPreEQStage.Prepare(sampleRate, maxBlockSize);
-  mToneStack->Reset(sampleRate, maxBlockSize);
+  mPostEQStage.Prepare(sampleRate, maxBlockSize);
   mReverbIRStage.Prepare(sampleRate, maxBlockSize);
   _UpdateLatency();
 }
@@ -682,10 +773,12 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     // Changes to the output gain
     case kOutputLevel:
     case kOutputMode: _SetOutputGain(); break;
-    // Tone stack:
-    case kToneBass: mToneStack->SetParam("bass", GetParam(paramIdx)->Value()); break;
-    case kToneMid: mToneStack->SetParam("middle", GetParam(paramIdx)->Value()); break;
-    case kToneTreble: mToneStack->SetParam("treble", GetParam(paramIdx)->Value()); break;
+    // Reserved legacy tone-stack parameters. Retained for host/session
+    // compatibility, but intentionally inactive in the V1 signal chain.
+    case kToneBass:
+    case kToneMid:
+    case kToneTreble:
+    case kEQActive: break;
     case kSlim: _ApplySlimParamToLoadedNAMs(); break;
     case kReverbIRBypass:
     case kReverbIRMix:
@@ -699,6 +792,22 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kPreEQMidGain:
     case kPreEQMidFrequency:
     case kPreEQHighShelfGain: _ApplyPreEQParams(); break;
+    case kPostEQBypass:
+    case kPostEQLowCut:
+    case kPostEQBand1Frequency:
+    case kPostEQBand1Gain:
+    case kPostEQBand2Frequency:
+    case kPostEQBand2Gain:
+    case kPostEQBand3Frequency:
+    case kPostEQBand3Gain:
+    case kPostEQBand4Frequency:
+    case kPostEQBand4Gain:
+    case kPostEQHighCut: _ApplyPostEQParams(); break;
+    // Reserved legacy Post-EQ Q parameters. V1 uses fixed per-band Q.
+    case kPostEQBand1Q:
+    case kPostEQBand2Q:
+    case kPostEQBand3Q:
+    case kPostEQBand4Q: break;
     default: break;
   }
 }
@@ -712,9 +821,6 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
     switch (paramIdx)
     {
       case kNoiseGateActive: pGraphics->GetControlWithParamIdx(kNoiseGateThreshold)->SetDisabled(!active); break;
-      case kEQActive:
-        pGraphics->ForControlInGroup("EQ_KNOBS", [active](IControl* pControl) { pControl->SetDisabled(!active); });
-        break;
       case kIRToggle: pGraphics->GetControlWithTag(kCtrlTagIRFileBrowser)->SetDisabled(!active); break;
       case kReverbIRBypass:
         pGraphics->ForControlInGroup("REVERB_CONTROLS",
@@ -722,6 +828,10 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
         break;
       case kPreEQBypass:
         pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
+                                     [active](IControl* pControl) { pControl->SetDisabled(active); });
+        break;
+      case kPostEQBypass:
+        pGraphics->ForControlInGroup("POST_EQ_CONTROLS",
                                      [active](IControl* pControl) { pControl->SetDisabled(active); });
         break;
       default: break;
@@ -1053,6 +1163,17 @@ void NeuralAmpModeler::_ApplyPreEQParams()
   mPreEQStage.SetHighShelfGain(GetParam(kPreEQHighShelfGain)->Value());
 }
 
+void NeuralAmpModeler::_ApplyPostEQParams()
+{
+  mPostEQStage.SetBypassed(GetParam(kPostEQBypass)->Bool());
+  mPostEQStage.SetHighPassFrequency(GetParam(kPostEQLowCut)->Value());
+  mPostEQStage.SetBand(0, GetParam(kPostEQBand1Frequency)->Value(), GetParam(kPostEQBand1Gain)->Value());
+  mPostEQStage.SetBand(1, GetParam(kPostEQBand2Frequency)->Value(), GetParam(kPostEQBand2Gain)->Value());
+  mPostEQStage.SetBand(2, GetParam(kPostEQBand3Frequency)->Value(), GetParam(kPostEQBand3Gain)->Value());
+  mPostEQStage.SetBand(3, GetParam(kPostEQBand4Frequency)->Value(), GetParam(kPostEQBand4Gain)->Value());
+  mPostEQStage.SetLowPassFrequency(GetParam(kPostEQHighCut)->Value());
+}
+
 size_t NeuralAmpModeler::_GetBufferNumChannels() const
 {
   // Assumes input=output (no mono->stereo effects)
@@ -1066,11 +1187,6 @@ size_t NeuralAmpModeler::_GetBufferNumFrames() const
   return mInputArray[0].size();
 }
 
-void NeuralAmpModeler::_InitToneStack()
-{
-  // If you want to customize the tone stack, then put it here!
-  mToneStack = std::make_unique<dsp::tone_stack::BasicNamToneStack>();
-}
 void NeuralAmpModeler::_PrepareBuffers(const size_t numChannels, const size_t numFrames)
 {
   const bool updateChannels = numChannels != _GetBufferNumChannels();
