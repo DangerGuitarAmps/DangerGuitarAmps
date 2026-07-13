@@ -1,40 +1,104 @@
-# Contributing to the Neural Amp Modeler Plugin
-Thanks for your interest in the project! Here are a few quick tips to make sure that your PR will go smoothly:
+# Contributing to Danger Guitar Amps
 
-## "Communication is the best policy"
-This is a fun, scrappy project. 
-Things might change--quickly--including these guidelines.
-If you're not sure about something or have a suggestion, reach out!
+Thanks for helping improve Danger Guitar Amps. The project is a derivative of
+the Neural Amp Modeler plug-in, so changes must preserve upstream attribution,
+licensing, model compatibility, and existing session compatibility.
 
-## Have an idea?
-If you have an idea that you'd like to see in the plugin, start by [raising an Issue](https://github.com/sdatkinson/NeuralAmpModelerPlugin/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=%5BFEATURE%5D) and describe what you'd like to see. 
-This way, we can be sure that it's something that will fit in nicely with the plan before you start working.
+## Before starting
 
-## Working on Issues
-If you'd like to work on an [existing Issue](https://github.com/sdatkinson/NeuralAmpModelerPlugin/issues), then speak up in the issue's discussion thread.
-I would like to ask that you please try to give me a timeline for your work--I'd hate to have you duplicate work if I know that I'm going to e.g. get to it today and beat you to the punch.
+Search the [issue tracker](https://github.com/DangerGuitarAmps/DangerGuitarAmps/issues)
+before opening a new report or beginning a substantial change. For a feature or
+architectural change, open an issue first and describe the user problem, proposed
+scope, compatibility impact, and testing plan.
 
-## Testing
-This repo doesn't currently have unit tests (gasp! Sorry! If you want to help by proposing a framework, please [raise an Issue](https://github.com/sdatkinson/NeuralAmpModelerPlugin/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=%5BFEATURE%5D)!)
-However, there are a few things I'd appreciate if you did to make sure that everything is working as expected:
-- [ ] The standalone plugin builds.
-- [ ] The plugin runs.
-  - [ ] The plugin makes sound.
-  - [ ] You can load a new-style (file) model.
-  - [ ] You can load an old-style (directory) model.
-  - [ ] You can load a supported IR.
-  - [ ] The EQ section works.
-- [ ] The VST3 plugin builds and can be loaded in [the VST3 SDK VST3PluginTestHost](https://steinbergmedia.github.io/vst3_dev_portal/pages/What+is+the+VST+3+SDK/Plug-in+Test+Host.html)
-  - [ ] The plugin passes all unit tests implemented by the VST3PluginTestHost's unit testing tool.
-- [ ] The AU plugin builds.
+Never submit third-party NAM models, impulse responses, artwork, or other assets
+unless you have permission to redistribute them under terms compatible with this
+repository.
 
-## Code style
-I don't care too much about the specifics of style, but it helps keep things orderly and helps make sure that the changes in a PR are real changes and not just e.g. an IDE replacing tabs with spaces.
-Going on the main criterion of ease of adoption, the C++ code (`.cpp` and `.h` files) are formatted according to the LLVM code style that `clang-format` enforces. 
-To easily apply the format to your code, run
+## Development setup
+
+Clone the repository and all submodules:
+
+```powershell
+git clone --recursive https://github.com/DangerGuitarAmps/DangerGuitarAmps.git
+cd DangerGuitarAmps
+git submodule update --init --recursive
+```
+
+The supported Windows VST3 build uses Visual Studio 2022 with the Desktop
+development with C++ workload, MSVC v143, and a Windows 10 or Windows 11 SDK.
+See [`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md) for the established setup
+and build procedure.
+
+## Keep changes focused
+
+- Use a dedicated branch and small, reversible commits.
+- Avoid unrelated formatting or generated-file changes.
+- Do not upgrade dependencies as part of an unrelated fix.
+- Do not rename `NeuralAmpModelerCore`, the `nam` namespace, or inherited core
+  paths solely for branding.
+- Preserve the Danger Guitar Amps product, manufacturer, bundle, and VST3 class
+  identities unless an issue explicitly authorises an identity migration.
+
+## Audio and session compatibility
+
+Parameter IDs, enum order, host-visible automation, and serialized state are
+compatibility contracts. Do not remove, reorder, renumber, or reuse a parameter
+ID. Deprecated IDs documented in
+[`docs/DEPRECATED_PARAMETERS.md`](docs/DEPRECATED_PARAMETERS.md) remain reserved.
+
+Code reachable from the audio callback must not perform file I/O, heap
+allocation, or blocking lock acquisition. Load and prepare NAM models and IRs
+off the audio thread, then hand complete state to processing using the existing
+staging design.
+
+DSP changes should include a clear signal-flow description, expected audible
+effect, neutral/bypass behaviour, real-time safety analysis, and regression
+test plan.
+
+## Style
+
+C++ uses the repository's `.clang-format` configuration. Format relevant C++
+changes with:
 
 ```bash
 bash format.bash
 ```
 
-and commit the changes.
+Keep documentation concise, use relative repository links, and distinguish
+Danger Guitar Amps from the official Neural Amp Modeler projects.
+
+## Testing checklist
+
+Run checks appropriate to the change and state clearly what was not tested.
+For Windows VST3 changes, verify at minimum:
+
+- [ ] `NeuralAmpModeler-vst3` builds as `Release|x64`.
+- [ ] The complete `DangerGuitarAmps.vst3` bundle is produced.
+- [ ] The plug-in scans under its distinct Danger Guitar Amps identity.
+- [ ] Existing Danger projects restore without parameter shifts.
+- [ ] Input, gate, Pre-EQ, NAM, Speaker IR, Post-EQ, Reverb IR, and output stages
+      retain their intended order and bypass behaviour.
+- [ ] Mono and stereo host routing are checked where the change can affect them.
+- [ ] NAM model, Speaker IR, and Reverb IR loading are checked where relevant.
+- [ ] No new real-time allocation, file I/O, or blocking lock was introduced.
+- [ ] `git diff --check` passes and no build output is staged.
+
+Where available, also validate the VST3 using Steinberg's VST3PluginTestHost.
+
+## Pull requests
+
+A pull request should include:
+
+- a concise explanation of the problem and solution;
+- linked issues;
+- every changed file and why it changed;
+- build and manual-test results;
+- parameter/state compatibility impact;
+- real-time safety impact for audio changes;
+- screenshots for custom-UI changes;
+- any remaining limitations or follow-up work.
+
+By contributing, you agree that your contribution may be distributed under the
+licensing terms applicable to the repository and the files you modify. Preserve
+all existing upstream copyright and licence notices.

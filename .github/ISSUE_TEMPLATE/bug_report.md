@@ -1,48 +1,72 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: "[BUG]"
-labels: bug, unread, priority:low
+about: Report a reproducible Danger Guitar Amps problem
+title: "[BUG] "
+labels: bug
 assignees: ''
-
 ---
 
-**Thanks for taking the time to write a bug report!** Use the following prompts to help you describe what's going on.  The more info you provide, the easier it'll be to understand how to fix it for you without having to come back and ask you questions.
+Thanks for helping test Danger Guitar Amps. Please remove private information
+and confirm that any attached models or IRs may be shared publicly.
 
-## Before you make a new bug report:
-- [ ] Have you searched the Issues to see if your problem has already been reported? If it has, please follow that Issue instead of opening a duplicate!
-- [ ] Have you checked the [Rough edges](https://github.com/sdatkinson/NeuralAmpModelerPlugin/tree/main?tab=readme-ov-file#rough-edges) for help?
+## Before submitting
 
-## Description
-Provide a clear and concise description of what the bug is.
-If the plugin is crashing, include the complete crash log.
+- [ ] I searched existing issues for the same problem.
+- [ ] I am testing Danger Guitar Amps, not the official Neural Amp Modeler plug-in.
+- [ ] I reproduced the problem with the latest available Danger build where practical.
+- [ ] I backed up the affected DAW project before testing an RC build.
 
-## To reproduce
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Version and environment
 
-## Expected behavior
-Provide a clear and concise description of what you expected to happen.
+- Danger Guitar Amps version (for example, `1.0.0-rc2`):
+- Downloaded release or self-built commit:
+- Windows version and architecture:
+- DAW and exact version:
+- Plug-in format (`VST3` expected for RC2):
+- Audio interface and driver type/version:
+- Sample rate:
+- Buffer size:
+- Display scaling (for UI issues):
+- CPU and GPU (if relevant):
 
-## Screenshots
-If applicable, add screenshots to help explain your problem.
+## Problem
 
-## Computer & other info
-**(please provide the following information):**
- - OS [e.g. Windows 10, macOS 10.15]
- - Onboard graphics & version
- - Plugin version [e.g. 0.7.10]
- - Standalone, VST3, or AU
- - DAW (if applicable)
- - Audio interface [e.g. Focusrite Scarlett Solo 3rd Gen]
- - Sample rate [e.g. 44.1 kHz]
- - Buffer size [e.g. 256 samples]
- - Provide a model that the bug happens with (_except_ if the bug happens _without_ a model loaded) _Note: Please try using [linear_10.nam](https://github.com/sdatkinson/neural-amp-modeler/blob/8cf2580121f181e751da9b7003fe72195d80955c/tests/resources/models/identity/linear_10.nam) and [wavenet_minimal](https://github.com/sdatkinson/neural-amp-modeler/blob/8cf2580121f181e751da9b7003fe72195d80955c/tests/resources/models/identity/wavenet_minimal.nam) and check whether they work as expected._
- - Provide an IR that the bug happens with (_except_ if the bug happens _without_ an IR loaded)
- - **Does the bug _not_ happen under some other conditions?** If you can find what _one_ thing makes the difference between the bug appearing and not, this _drastically_ improves the chances I can fix it.
+Describe what happened and what you expected instead.
+
+## Steps to reproduce
+
+1.
+2.
+3.
+
+## Signal-chain isolation
+
+State whether the problem still occurs with each of these removed or bypassed:
+
+- NAM model:
+- Noise Gate:
+- Pre-EQ:
+- Speaker IR:
+- Post-EQ:
+- Reverb IR:
+
+If a particular `.nam` model or WAV IR is required, attach a small legally
+shareable test file or provide a public link. Do not upload commercial or private
+content.
+
+## Project and compatibility details
+
+- Does the problem occur in a new empty project?
+- Was the project created by an older Danger Guitar Amps build? Which version?
+- Does the official Neural Amp Modeler plug-in behave differently with the same
+  model and host settings?
+
+## Logs and evidence
+
+Attach relevant screenshots, a minimal project, host scan log, crash report, or
+short audio example. For crashes, include the complete crash report and the last
+action taken before the crash.
 
 ## Additional context
-Add any other context about the problem here.
+
+Add anything else that may help reproduce or diagnose the issue.
