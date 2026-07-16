@@ -7,20 +7,15 @@ Amps main interface. It specifies presentation and UI composition only. It does
 not authorize changes to audio behavior, parameter identity, routing, state,
 serialization, or dependencies.
 
-The visual source of truth is:
+No canonical raster image is currently authoritative. In particular,
+`danger-fidelity-final.png` shows the obsolete vertically separated NAM and
+Cabinet composition and must not be used as a pixel baseline. Until a new
+side-by-side composition is rendered and approved, the coordinate tables in
+this document are the layout authority and the palette/typography tables are
+the visual authority.
 
-- Reference: `C:\Dev\GuitarPlugin\danger-fidelity-final.png`
-- SHA-256: `E25CFF17E8A55D5281BCF637050DCCC081B9ADB41E66ED2E1A548D40C2106A4A`
-- Full image: 1920 x 1080 px
-- Exact plug-in crop in that image: `[242, 156, 716, 946)`
-- Cropped reference size: 474 x 790 px
-- Approved design coordinate system: 600 x 1000 logical px
-- Reference render scale: 0.79 physical px per logical px on both axes
-
-Coordinates in this document are `[left, top, right, bottom)` in the 600 x
-1000 logical design space. Right and bottom are exclusive. If a detail in this
-document conflicts with the reference image, the reference image wins for
-appearance and this document wins for behavior and scope.
+Coordinates are `[left, top, right, bottom)` in a 600 x 720 logical design
+space. Right and bottom are exclusive.
 
 The checked-in `DangerRackBackground.svg` and `DangerLogo.svg` identify
 themselves as placeholders. They are not visual authorities. The current
@@ -31,7 +26,7 @@ interaction behavior, but it is not the approved composition.
 
 An implementation of this specification may change only UI layout, drawing,
 UI-only control classes, UI resource declarations, artwork, fonts, and the
-plug-in window dimensions required to present the approved 600 x 1000 canvas.
+  plug-in window dimensions required to present the approved 600 x 720 canvas.
 
 It must not:
 
@@ -54,37 +49,33 @@ moved and reskinned, not replaced with new parameters or messages.
 
 ## Visual target at a glance
 
-The approved interface is a narrow, vertically stacked industrial rack. It has
-seven visual modules in signal-flow order:
+The approved interface is a compact industrial rack with six rows in
+signal-flow order:
 
 1. branded header;
 2. input and gate;
 3. pre-EQ;
-4. NAM amp model;
-5. cabinet IR;
-6. nine-band graphic post-EQ;
-7. output and output meter.
+4. independent NAM amp and Cabinet IR consoles sharing one horizontal row;
+5. nine-band graphic post-EQ;
+6. output and output meter.
 
-The layout must read top-to-bottom. Do not combine the NAM amp and cabinet IR
-into one row, put Output back in the Input/Gate row, or return to the shorter
-600 x 800 arrangement.
+The row order is fixed. NAM and Cabinet remain independent consoles with their
+own borders, title strips, recessed displays, controls, hit regions, and status
+information.
 
 ## Canvas, scale, and resizing
 
-- Design canvas: exactly 600 x 1000 logical px.
-- The implementation target is `PLUG_WIDTH = 600` and `PLUG_HEIGHT = 1000`;
+- Design canvas: exactly 600 x 720 logical px.
+- The implementation target is `PLUG_WIDTH = 600` and `PLUG_HEIGHT = 720`;
   retain the existing four-times maximum-size policy.
 - Root origin: `(0, 0)`; no layout calculation may depend on host chrome.
 - Use one uniform scale for X and Y. Do not independently stretch the axes.
-- The approved screenshot is the design rendered at exactly 0.79x, producing
-  474 x 790 physical px. Its geometry proves the intended 3:5 aspect ratio.
-- Keep `EUIResizerMode::Scale`. Scaling must preserve the 3:5 aspect ratio.
+- Keep `EUIResizerMode::Scale`. Scaling must preserve the 5:6 aspect ratio.
 - The background, hit rectangles, labels, and controls must use the same
   transform so rendering and pointer targets cannot drift apart.
 - Pixel snapping: snap one-pixel strokes and fader index lines to device-pixel
   centers after scaling. Filled rectangles may land on whole device pixels.
-- Minimum supported visual check: 0.79x. Also verify 1x and 2x for clipping,
-  text truncation, and bitmap selection.
+- Verify 1x and 2x for clipping, text truncation, and bitmap selection.
 - Retain 60 FPS, text entry, mouse-over, tooltips, multi-touch, and the existing
   corner resizer behavior.
 
@@ -109,15 +100,15 @@ bake hover or disabled states into replacement bitmaps.
 | `clip.red` | iPlug `COLOR_RED` | meter clipping only |
 
 The large faces must stay very dark and low-contrast. Red is a compact hardware
-accent, not a panel fill. Amber is the signal/status color. The approved image
+accent, not a panel fill. Amber is the signal/status color. The implementation
 must not acquire blue theme accents; the existing blue globe artwork may remain
 only until a visually equivalent neutral/amber icon is supplied.
 
 ### Chassis treatment
 
-- Outer chassis: `[8, 8, 592, 992)`, 5 px corner radius, 2 px worn-steel bevel.
-- Side rails: `[0, 0, 9, 1000)` and `[591, 0, 600, 1000)` with a dark-to-steel-to-dark horizontal gradient.
-- Corner screws: centers `(17,17)`, `(583,17)`, `(17,983)`, `(583,983)`;
+- Outer chassis: `[8, 8, 592, 712)`, 5 px corner radius, 2 px worn-steel bevel.
+- Side rails: `[0, 0, 9, 720)` and `[591, 0, 600, 720)` with a dark-to-steel-to-dark horizontal gradient.
+- Corner screws: centers `(17,17)`, `(583,17)`, `(17,703)`, `(583,703)`;
   radius 4 px; dark fill and muted-steel 1 px outline.
 - Each module has a beveled frame, a recessed near-black title strip, two small
   face screws per side, and a 3 px amber/red vertical accent at its left edge.
@@ -144,28 +135,27 @@ text; do not rasterize labels into the background.
 
 ## Module geometry
 
-The following rectangles are the approved rack-frame bounds. A 2 px tolerance
-in the source screenshot is anti-aliasing, not permission to move panels.
+The following rectangles are the target rack-frame bounds.
 
 | Module | Bounds | Heading |
 | --- | --- | --- |
-| Header | `[18, 8, 582, 94)` | `DANGER GUITAR AMPS` |
-| Input / Gate | `[20, 95, 580, 220)` | `INPUT / GATE` |
-| Pre-EQ | `[20, 228, 580, 356)` | `PRE-EQ` |
-| NAM amp | `[20, 366, 580, 484)` | `NAM AMP` |
-| Cabinet IR | `[20, 494, 580, 612)` | `CABINET IR` |
-| Post-EQ | `[20, 624, 580, 888)` | `NINE-BAND GRAPHIC POST-EQ` |
-| Output | `[20, 897, 580, 992)` | `OUTPUT` |
+| Header | `[18, 8, 582, 72)` | `DANGER GUITAR AMPS` |
+| Input / Gate | `[20, 78, 580, 178)` | `INPUT / GATE` |
+| Pre-EQ | `[20, 184, 580, 288)` | `PRE-EQ` |
+| NAM amp | `[20, 294, 296, 402)` | `NAM AMP` |
+| Cabinet IR | `[304, 294, 580, 402)` | `CABINET IR` |
+| Post-EQ | `[20, 408, 580, 590)` | `NINE-BAND GRAPHIC POST-EQ` |
+| Output | `[20, 596, 580, 712)` | `OUTPUT` |
 
-Each heading occupies the first 24 logical px of its module. The visible
-heading baseline is centered in that band. Panel content begins at least 26 px
+Each heading occupies the first 22 logical px of its module. The visible
+heading baseline is centered in that band. Panel content begins at least 24 px
 below the panel top so labels cannot collide with the bevel or accent rail.
 
 ## Header
 
-- Danger warning mark visual box: `[36, 30, 76, 68)`.
-- Product-title box: `[105, 28, 515, 65)`.
-- Settings button visual and hit box: `[548, 31, 574, 57)`.
+- Danger warning mark visual box: `[36, 22, 76, 62)`.
+- Product-title box: `[105, 20, 515, 60)`.
+- Settings button visual and hit box: `[548, 22, 574, 48)`.
 - The title is exactly `DANGER GUITAR AMPS`.
 - Do not show the old `MODEL AMPLIFIER // IMPULSE CABINET` subtitle in the
   approved main view.
@@ -176,10 +166,10 @@ below the panel top so labels cannot collide with the bevel or accent rail.
 
 | Element | Bounds | Binding/copy |
 | --- | --- | --- |
-| Input meter | `[35, 123, 66, 210)` | existing `kCtrlTagInputMeter` sender |
-| Input knob | `[132, 122, 232, 215)` | `kInputLevel`; label `Input` |
-| Gate switch | `[278, 126, 342, 211)` | `kNoiseGateActive`; label `Gate`; vertical |
-| Threshold knob | `[395, 122, 495, 215)` | `kNoiseGateThreshold`; label `Threshold` |
+| Input meter | `[35, 104, 58, 170)` | existing `kCtrlTagInputMeter` sender |
+| Input knob | `[120, 102, 210, 176)` | `kInputLevel`; label `Input` |
+| Gate switch | `[270, 102, 330, 174)` | `kNoiseGateActive`; label `Gate`; vertical |
+| Threshold knob | `[390, 102, 480, 176)` | `kNoiseGateThreshold`; label `Threshold` |
 
 - Default display values are `0.0 dB` for Input and `-80.0 dB` for Threshold.
 - The meter is a narrow recessed vertical slot. Preserve its existing meter
@@ -190,17 +180,17 @@ below the panel top so labels cannot collide with the bevel or accent rail.
 
 | Element | Bounds | Binding | Visible label |
 | --- | --- | --- | --- |
-| Bypass switch | `[55, 260, 155, 323)` | `kPreEQBypass` | `Bypass` |
-| Low-cut knob | grid cell 0 | `kPreEQLowCut` | `Low Cut` |
-| Body knob | grid cell 1 | `kPreEQLowShelfGain` | `Body` |
-| Mid-frequency knob | grid cell 2 | `kPreEQMidFrequency` | `Mid Freq` |
-| Mid-gain knob | grid cell 3 | `kPreEQMidGain` | `Mid Gain` |
-| Attack knob | grid cell 4 | `kPreEQHighShelfGain` | `Attack` |
+| Bypass switch | `[42, 214, 132, 276)` | `kPreEQBypass` | `Bypass` |
+| Low-cut knob | `[145, 206, 230, 286)` | `kPreEQLowCut` | `Low Cut` |
+| Body knob | `[230, 206, 315, 286)` | `kPreEQLowShelfGain` | `Body` |
+| Mid-frequency knob | `[315, 206, 400, 286)` | `kPreEQMidFrequency` | `Mid Freq` |
+| Mid-gain knob | `[400, 206, 485, 286)` | `kPreEQMidGain` | `Mid Gain` |
+| Attack knob | `[485, 206, 570, 286)` | `kPreEQHighShelfGain` | `Attack` |
 
-The five-knob grid is `[170, 255, 590, 354)`, five equal 84 px cells. Each knob
-has a 70 px bitmap diameter centered in its cell, with the label above and value
-below. Default values shown in the approved reference are `120 Hz`, `0.0 dB`,
-`800 Hz`, `0.0 dB`, and `0.0 dB`.
+The five-knob grid is `[145, 206, 570, 286)`, five equal 85 px cells. Every
+label, bitmap, value, and hit region must remain within those cells and within
+the Pre-EQ panel. Each knob has a 58 px bitmap diameter centered in its cell.
+Default values are `120 Hz`, `0.0 dB`, `800 Hz`, `0.0 dB`, and `0.0 dB`.
 
 When bypass is on, disable the five controls through the existing
 `PRE_EQ_CONTROLS` group. Keep them visible and readable at reduced opacity.
@@ -208,9 +198,15 @@ Mouse events and tooltips while disabled retain current behavior.
 
 ## NAM amp module
 
-- Status caption: box `[75, 395, 555, 420)`, text `MODEL STATUS`.
-- Browser surround: `[75, 420, 555, 478)`, 2 px amber outline, 4 px radius.
-- Existing file-browser control/hit region: `[110, 430, 520, 468)`.
+- Console border: `[20, 294, 296, 402)`; it must not merge with the Cabinet border.
+- Title strip: `[20, 294, 296, 316)`, text `NAM AMP`.
+- Status caption: `[34, 318, 258, 336)`, text `MODEL STATUS`.
+- Slimmable-model affordance: `[260, 318, 282, 336)`, conditional.
+- Recessed browser surround: `[30, 338, 286, 394)`, 2 px amber outline, 4 px radius.
+- Existing file-browser control/hit region: `[48, 348, 268, 384)`.
+- Browser child hit regions, left to right: load `[48,348,76,384)`, previous
+  `[76,348,100,384)`, next `[100,348,124,384)`, filename/menu
+  `[124,348,238,384)`, and clear/get `[238,348,268,384)`.
 - Empty-state text: `NO MODEL LOADED` in amber.
 - Picker text when invoked: retain the existing platform-specific
   `Select model...` or directory variant.
@@ -223,11 +219,17 @@ Mouse events and tooltips while disabled retain current behavior.
 
 ## Cabinet IR module
 
-- Status caption: box `[75, 523, 555, 548)`, text `CABINET STATUS`.
-- Browser surround: `[75, 548, 555, 606)`, 2 px amber outline, 4 px radius.
-- Existing file-browser control/hit region: `[110, 558, 520, 596)`.
-- IR enable icon/switch: `[75, 553, 105, 601)`; it must remain bound directly
+- Console border: `[304, 294, 580, 402)`; it must not merge with the NAM border.
+- Title strip: `[304, 294, 580, 316)`, text `CABINET IR`.
+- Status caption: `[318, 318, 538, 336)`, text `CABINET STATUS`.
+- Channel-format indicator: `[540, 318, 566, 336)`.
+- Recessed browser surround: `[314, 338, 570, 394)`, 2 px amber outline, 4 px radius.
+- IR enable icon/switch: `[322, 346, 350, 386)`; it must remain bound directly
   to `kIRToggle`.
+- Existing file-browser control/hit region: `[350, 348, 552, 384)`.
+- Browser child hit regions, left to right: load `[350,348,378,384)`, previous
+  `[378,348,402,384)`, next `[402,348,426,384)`, filename/menu
+  `[426,348,522,384)`, and clear/get `[522,348,552,384)`.
 - Empty-state text: `NO CABINET IR LOADED` in amber.
 - Preserve `kCtrlTagIRFileBrowser`, `kCtrlTagIRFormatIndicator`,
   `kMsgTagClearIR`, `kMsgTagLoadedIR`, `kMsgTagLoadFailed`, `.wav` filtering,
@@ -237,25 +239,29 @@ Mouse events and tooltips while disabled retain current behavior.
 
 ## Nine-band graphic post-EQ module
 
-- Bypass switch: `[50, 674, 145, 731)`, bound to `kPostEQBypass`, label
+The complete Post-EQ panel is 182 logical px high and must not exceed 190 px.
+
+- Bypass switch: `[36, 436, 116, 476)`, bound to `kPostEQBypass`, label
   `Bypass`.
-- Flat button: `[493, 674, 555, 708)`, text `FLAT`.
-- Nine-band grid: `[126, 690, 484, 862)`, nine equal-width cells.
-- Post-level fader: `[500, 720, 553, 862)`.
+- Flat button: `[500, 434, 558, 460)`, text `FLAT`.
+- Left scale legend: `[108, 454, 126, 582)`.
+- Post-level fader: `[500, 462, 552, 582)`.
+
+The nine exact fader cells are:
 
 The band order and labels are fixed:
 
-| Cell | Binding | Label |
-| ---: | --- | --- |
-| 0 | `kGraphicEQ62HzGain` | `62.5` |
-| 1 | `kGraphicEQ125HzGain` | `125` |
-| 2 | `kGraphicEQ250HzGain` | `250` |
-| 3 | `kGraphicEQ500HzGain` | `500` |
-| 4 | `kGraphicEQ1kHzGain` | `1k` |
-| 5 | `kGraphicEQ2kHzGain` | `2k` |
-| 6 | `kGraphicEQ4kHzGain` | `4k` |
-| 7 | `kGraphicEQ8kHzGain` | `8k` |
-| 8 | `kGraphicEQ16kHzGain` | `16k` |
+| Cell | Bounds | Binding | Label |
+| ---: | --- | --- | --- |
+| 0 | `[126, 446, 166, 582)` | `kGraphicEQ62HzGain` | `62.5` |
+| 1 | `[166, 446, 205, 582)` | `kGraphicEQ125HzGain` | `125` |
+| 2 | `[205, 446, 245, 582)` | `kGraphicEQ250HzGain` | `250` |
+| 3 | `[245, 446, 284, 582)` | `kGraphicEQ500HzGain` | `500` |
+| 4 | `[284, 446, 324, 582)` | `kGraphicEQ1kHzGain` | `1k` |
+| 5 | `[324, 446, 363, 582)` | `kGraphicEQ2kHzGain` | `2k` |
+| 6 | `[363, 446, 403, 582)` | `kGraphicEQ4kHzGain` | `4k` |
+| 7 | `[403, 446, 442, 582)` | `kGraphicEQ8kHzGain` | `8k` |
+| 8 | `[442, 446, 482, 582)` | `kGraphicEQ16kHzGain` | `16k` |
 
 Faders have a black recessed 8 px slot, a 1.5 px muted-steel center rail, five
 horizontal scale marks, and a 16 x 10 px red cap with a 1 px cream index. The
@@ -277,8 +283,8 @@ behavior. Do not introduce a DSP-side reset or bypass path.
 
 | Element | Bounds | Binding |
 | --- | --- | --- |
-| Output knob | `[70, 900, 180, 990)` | existing `kOutputLevel` |
-| Horizontal output meter | `[205, 923, 565, 980)` | existing `kCtrlTagOutputMeter` sender |
+| Output knob | `[58, 620, 158, 708)` | existing `kOutputLevel` |
+| Horizontal output meter | `[190, 632, 558, 696)` | existing `kCtrlTagOutputMeter` sender |
 
 - Label the knob `Output`; default display is `0.0 dB`.
 - The output meter is horizontal in the approved UI. This is a UI-only drawing
@@ -293,12 +299,13 @@ behavior. Do not introduce a DSP-side reset or bypass path.
 
 - Reuse the existing three-resolution `KnobBackground` bitmap family unless a
   replacement reproduces the approved black hardware knob exactly.
-- Main knob diameter: 76 logical px; Pre-EQ knob diameter: 70 logical px.
+- Main knob diameter: 64 logical px; Pre-EQ knob diameter: 58 logical px.
 - Preserve the current rotation range, gearing, text-entry behavior, radial
   indicator track, pointer glow, and hover response.
 - Pointer dot is warning red at rest and may brighten on hover. Do not use an
   animated halo.
-- Labels sit above and values below. Neither may overlap the bitmap at 0.79x.
+- Labels sit above and values below. Neither may overlap the bitmap at any
+  supported scale.
 
 ### Switches
 
@@ -368,7 +375,7 @@ delete, reorder, or repurpose them.
 ## Resource implementation rules
 
 - Replace placeholder Danger chassis/logo art with deterministic vector assets
-  using the approved 600 x 1000 and 48 x 40 view boxes respectively.
+  using the approved 600 x 720 and 48 x 40 view boxes respectively.
 - Keep logical resource filenames stable where practical. If files are added,
   register them consistently in `config.h`, `resource.h`, Windows `.rc`, and
   Apple project resources without altering product metadata.
@@ -383,27 +390,27 @@ delete, reorder, or repurpose them.
 ### Visual capture
 
 1. Build the UI-only implementation with no functional changes.
-2. Open the VST3 in REAPER using the same 1920 x 1080 Windows environment and
-   0.79x host render scale as the approved capture.
-3. Use default state with no NAM model and no cabinet IR loaded, Gate active,
+2. Open the VST3 in REAPER at a known uniform scale.
+3. Use default state with no NAM model and no Cabinet IR loaded, Gate active,
    Pre-EQ bypassed, Post-EQ bypassed, all displayed gains at 0 dB, Input at
    0 dB, Threshold at -80 dB, and Output at 0 dB.
-4. Crop exactly to the plug-in view. The result must be 474 x 790 px.
-5. Compare against the canonical crop from `[242,156,716,946)`.
+4. Confirm the complete 600 x 720 composition, especially the two independent
+   side-by-side consoles and the Post-EQ height.
+5. Record a candidate reference capture for explicit composition approval. No
+   exact physical crop is required during this first implementation pass.
 
 ### Visual tolerances
 
-- Solid fills and long rules: maximum 2 RGB levels per channel from target.
-- Panel/control geometry: no edge more than 1 physical px from target at 0.79x.
-- Text baselines and control centers: no more than 1 physical px deviation.
-- Anti-aliased text/vector edges: maximum 12 RGB levels per channel within a
-  one-pixel edge neighborhood.
+- Panel and control geometry: within +/-2 logical px of the coordinate tables.
+- Text baselines and control centers: within +/-2 logical px.
+- Colours: visually equivalent to the named palette tokens; exact per-channel
+  matching is not required for the first implementation pass.
 - No clipped labels, overlapping values, missing scale ticks, asymmetric panel
   margins, or host-background gaps.
 - Dynamic meter pixels may be masked, but meter well, ticks, scale labels, and
   clip region may not be masked.
-- Any reference change requires a new filename/hash and explicit approval; do
-  not silently move the baseline.
+- Once a side-by-side reference is approved, record its filename and hash in a
+  later documentation revision before enabling strict pixel-diff acceptance.
 
 ### Functional regression checks
 
@@ -428,8 +435,9 @@ must be unchanged.
 
 ## Definition of done
 
-The UI implementation is complete only when the canonical main-page capture
-meets the visual tolerances, every binding and interaction check passes, the
-secondary surfaces remain functional, all target resource builds succeed, and
-the change-scope audit confirms that no DSP, parameter, routing, state,
-serialization, or `AudioDSPTools` behavior changed.
+The first UI implementation pass is complete only when the 600 x 720
+composition meets these tolerances, every binding and interaction check passes,
+the secondary surfaces remain functional, all target resource builds succeed,
+and the change-scope audit confirms that no DSP, parameter, routing, state,
+serialization, or `AudioDSPTools` behavior changed. Strict pixel-diff approval
+begins only after a matching side-by-side reference image is approved.
