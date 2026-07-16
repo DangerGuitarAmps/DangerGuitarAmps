@@ -55,18 +55,44 @@ public:
 class NAMGraphicEQSliderControl : public IVSliderControl
 {
 public:
-  NAMGraphicEQSliderControl(const IRECT& bounds, const int paramIdx, const char* label, const IVStyle& style)
+  NAMGraphicEQSliderControl(const IRECT& bounds, const int paramIdx, const char* label, const IVStyle& style,
+                            const double zeroPosition = 0.5)
   : IVSliderControl(bounds, paramIdx, label, style, true, EDirection::Vertical, DEFAULT_GEARING, 8.0f, 3.0f, true)
+  , mZeroPosition(std::clamp(zeroPosition, 0.0, 1.0))
   {
   }
 
   void DrawWidget(IGraphics& g) override
   {
-    IVSliderControl::DrawWidget(g);
     const auto track = GetTrackBounds();
-    g.FillRect(PluginColors::NAM_THEMEFONTCOLOR.WithOpacity(0.7f),
-               IRECT(track.L - 3.0f, track.MH() - 0.75f, track.R + 3.0f, track.MH() + 0.75f));
+    const float cx = track.MW();
+    const float zeroY = track.B - static_cast<float>(mZeroPosition) * track.H();
+    const float handleY = track.B - static_cast<float>(GetValue()) * track.H();
+
+    // Recessed rack slot and engraved scale marks.
+    g.FillRoundRect(COLOR_BLACK.WithOpacity(0.78f), IRECT(cx - 4.0f, track.T - 2.0f, cx + 4.0f, track.B + 2.0f),
+                    2.0f);
+    g.FillRect(PluginColors::NAM_3.WithOpacity(0.48f), IRECT(cx - 0.75f, track.T, cx + 0.75f, track.B));
+    for (int tick = 0; tick < 5; ++tick)
+    {
+      const float y = track.T + tick * track.H() * 0.25f;
+      const float halfWidth = tick == 2 ? 6.0f : 3.5f;
+      g.FillRect(tick == 2 ? PluginColors::OFF_WHITE.WithOpacity(0.88f) : PluginColors::NAM_3.WithOpacity(0.6f),
+                 IRECT(cx - halfWidth, y - 0.6f, cx + halfWidth, y + 0.6f));
+    }
+    g.FillRect(PluginColors::OFF_WHITE.WithOpacity(0.95f),
+               IRECT(cx - 7.0f, zeroY - 0.8f, cx + 7.0f, zeroY + 0.8f));
+
+    // Compact red anodised fader cap with a cream index line.
+    const IRECT handle(cx - 8.0f, handleY - 5.0f, cx + 8.0f, handleY + 5.0f);
+    g.FillRoundRect(COLOR_BLACK.WithOpacity(0.65f), handle.GetTranslated(1.5f, 2.0f), 2.0f);
+    g.FillRoundRect(PluginColors::NAM_THEMECOLOR, handle, 2.0f);
+    g.FillRect(PluginColors::OFF_WHITE.WithOpacity(0.9f),
+               IRECT(handle.L + 2.0f, handle.MH() - 0.6f, handle.R - 2.0f, handle.MH() + 0.6f));
   }
+
+private:
+  double mZeroPosition;
 };
 
 class NAMCircleButtonControl : public ISVGButtonControl

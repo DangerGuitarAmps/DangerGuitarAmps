@@ -23,8 +23,8 @@ using namespace igraphics;
 const double kDCBlockerFrequency = 5.0;
 
 // Styles
-const float kControlLabelTextSize = 14.0f;
-const float kSectionHeadingTextSize = 13.0f;
+const float kControlLabelTextSize = 12.0f;
+const float kSectionHeadingTextSize = 14.0f;
 const float kSectionHeadingTopPadding = 4.0f;
 const float kSectionHeadingHeight = 18.0f;
 const float kSectionHeadingBottomPadding = 4.0f;
@@ -55,7 +55,7 @@ const IVStyle style =
           DEFAULT_SHADOW_OFFSET,
           DEFAULT_WIDGET_FRAC,
           DEFAULT_WIDGET_ANGLE};
-const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(23, PluginColors::OFF_WHITE, "Michroma-Regular"))
+const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(22, PluginColors::OFF_WHITE, "Michroma-Regular"))
                              .WithDrawFrame(false)
                              .WithShadowOffset(1.f);
 const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(9, PluginColors::NAM_3, "Roboto-Regular"))
@@ -81,6 +81,7 @@ const IVStyle postEQTextStyle = DEFAULT_STYLE
                                   .WithDrawFrame(false)
                                   .WithDrawShadows(false);
 const IVStyle postEQCutSliderStyle = compactControlStyle
+                                       .WithShowLabel(true)
                                        .WithColor(kFG, PluginColors::NAM_3)
                                        .WithColor(kPR, PluginColors::NAM_THEMECOLOR)
                                        .WithColor(kFR, PluginColors::OFF_WHITE)
@@ -223,8 +224,8 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto contentArea = mainArea.GetPadded(-X(8.0f));
     const auto titleHeight = Y(62.0f);
     const auto titleArea = contentArea.GetFromTop(titleHeight);
-    const auto logoArea = titleArea.GetFromLeft(X(44.0f)).GetCentredInside(X(36.0f), Y(32.0f));
-    const auto productTitleArea = titleArea.GetReducedFromLeft(X(48.0f)).GetFromTop(Y(38.0f));
+    const auto logoArea = titleArea.GetFromLeft(X(54.0f)).GetCentredInside(X(40.0f), Y(38.0f));
+    const auto productTitleArea = titleArea.GetReducedFromLeft(X(54.0f)).GetFromTop(Y(38.0f));
     const auto productLegendArea = titleArea.GetReducedFromLeft(X(48.0f)).GetFromBottom(Y(17.0f));
 
     // Shared section-title geometry keeps headings clear of panel borders.
@@ -272,9 +273,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto postEQSectionArea = R(45.0f, 456.0f, 555.0f, 790.0f);
     const auto postEQTitleArea = sectionTitleArea(postEQSectionArea);
     const auto postEQBypassArea = sectionBypassArea(474.0f);
-    const auto postEQFlatArea = R(472.0f, 474.0f, 535.0f, 504.0f);
-    const auto graphicEQArea = R(72.0f, 510.0f, 470.0f, 770.0f);
-    const auto postLevelArea = R(482.0f, 510.0f, 535.0f, 770.0f);
+    const auto postEQFlatArea = R(474.0f, 470.0f, 535.0f, 500.0f);
+    const auto graphicEQArea = R(76.0f, 508.0f, 472.0f, 772.0f);
+    const auto postLevelArea = R(486.0f, 508.0f, 536.0f, 772.0f);
 
     // Areas for meters
     const auto inputMeterArea = R(10.0f, 68.0f, 40.0f, 210.0f);
@@ -323,9 +324,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     pGraphics->AttachControl(
       new IVLabelControl(productLegendArea, "MODEL AMPLIFIER  //  IMPULSE CABINET", shellLegendStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
-    pGraphics->AttachControl(new IVLabelControl(topSectionTitleArea, "INPUT / GATE / OUTPUT", sectionHeadingStyle));
+    pGraphics->AttachControl(new IVLabelControl(topSectionTitleArea, "INPUT  ·  GATE  ·  OUTPUT", sectionHeadingStyle));
     pGraphics->AttachControl(new IVLabelControl(preEQTitleArea, "PRE-EQ", sectionHeadingStyle));
-    pGraphics->AttachControl(new IVLabelControl(modelSectionTitleArea, "MODEL / SPEAKER IR", sectionHeadingStyle));
+    pGraphics->AttachControl(new IVLabelControl(modelSectionTitleArea, "MODEL  ·  CABINET IR", sectionHeadingStyle));
 
 #ifdef NAM_PICK_DIRECTORY
     const std::string defaultNamFileString = "Select model directory...";
@@ -416,10 +417,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                                                              postEQCutSliderStyle),
                                -1, "POST_EQ_CONTROLS");
     }
-    pGraphics->AttachControl(
-      new IVSliderControl(postLevelArea, kGraphicEQPostLevel, "Level", postEQCutSliderStyle, true,
-                          EDirection::Vertical, DEFAULT_GEARING, 8.0f, 3.0f, true),
-      -1, "POST_EQ_CONTROLS");
+    pGraphics->AttachControl(new NAMGraphicEQSliderControl(postLevelArea, kGraphicEQPostLevel, "POST",
+                                                           postEQCutSliderStyle, 2.0 / 3.0),
+                             -1, "POST_EQ_CONTROLS");
     const std::array<int, 10> graphicEQFlatParams{
       kGraphicEQ62HzGain, kGraphicEQ125HzGain, kGraphicEQ250HzGain, kGraphicEQ500HzGain, kGraphicEQ1kHzGain,
       kGraphicEQ2kHzGain, kGraphicEQ4kHzGain, kGraphicEQ8kHzGain, kGraphicEQ16kHzGain, kGraphicEQPostLevel};
@@ -435,7 +435,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
           delegate->EndInformHostOfParamChangeFromUI(paramIdx);
         }
       }, "FLAT", compactControlStyle));
-    pGraphics->AttachControl(new IVLabelControl(postEQTitleArea, "POST-EQ", sectionHeadingStyle));
+    pGraphics->AttachControl(new IVLabelControl(postEQTitleArea, "NINE-BAND GRAPHIC POST-EQ", sectionHeadingStyle));
     const bool postEQBypassed = GetParam(kPostEQBypass)->Bool();
     pGraphics->ForControlInGroup("POST_EQ_CONTROLS",
                                  [postEQBypassed](IControl* pControl) { pControl->SetDisabled(postEQBypassed); });
