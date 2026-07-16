@@ -16,17 +16,28 @@ serialized values so that all later parameter values remain correctly aligned.
 
 The active V1 chain routes Speaker IR directly into Post-EQ.
 
-## Post-EQ Q parameters
+## Removed Reverb IR parameters
 
-The following host parameters also remain reserved and serialized, but are
-inactive in V1:
+IDs 13–18 (`kReverbIRBypass` through `kReverbIRWetLevel`) remain host-visible
+and serialized solely to preserve automation and state alignment. They do not
+construct, load, or process a Reverb IR, and are not shown in the custom UI.
+The historical Reverb IR path and stereo-format field are still consumed when
+old sessions are read, then discarded safely.
 
-| ID | Enum | Host name | Fixed V1 Q |
-|---:|---|---|---:|
-| 29 | `kPostEQBand1Q` | `PostEQBand1Q` | 0.8 |
-| 32 | `kPostEQBand2Q` | `PostEQBand2Q` | 1.2 |
-| 35 | `kPostEQBand3Q` | `PostEQBand3Q` | 1.4 |
-| 38 | `kPostEQBand4Q` | `PostEQBand4Q` | 0.9 |
+## Replaced parametric Post-EQ parameters
 
-Historical readers continue consuming these values to preserve state alignment,
-but state application and host changes intentionally do not affect active DSP.
+The bypass at ID 25 (`kPostEQBypass`) is retained as the bypass for the active
+nine-band graphic EQ. The earlier variable-frequency Post-EQ controls at IDs
+26–39 remain reserved and serialized, but are inactive:
+
+| IDs | Enums | V1 behaviour |
+|---:|---|---|
+| 26 | `kPostEQLowCut` | Inactive |
+| 27–29 | `kPostEQBand1Frequency` through `kPostEQBand1Q` | Inactive |
+| 30–32 | `kPostEQBand2Frequency` through `kPostEQBand2Q` | Inactive |
+| 33–35 | `kPostEQBand3Frequency` through `kPostEQBand3Q` | Inactive |
+| 36–38 | `kPostEQBand4Frequency` through `kPostEQBand4Q` | Inactive |
+| 39 | `kPostEQHighCut` | Inactive |
+
+Historical readers continue consuming these values to preserve state alignment.
+The active fixed-frequency gains and Post Level are appended at IDs 40–49.

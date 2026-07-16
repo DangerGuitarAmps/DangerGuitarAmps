@@ -16,8 +16,8 @@
 
 
 const int kNumPresets = 1;
-// The plugin is mono inside
-constexpr size_t kNumChannelsInternal = 1;
+constexpr size_t kNumChannelsNAM = 1;
+constexpr size_t kMaximumInternalChannels = 2;
 
 class NAMSender : public iplug::IPeakAvgSender<>
 {
@@ -77,6 +77,17 @@ enum EParams
   kPostEQBand4Gain,
   kPostEQBand4Q,
   kPostEQHighCut,
+  // V1 graphic Post-EQ parameters. Append only; all preceding IDs are reserved.
+  kGraphicEQ62HzGain,
+  kGraphicEQ125HzGain,
+  kGraphicEQ250HzGain,
+  kGraphicEQ500HzGain,
+  kGraphicEQ1kHzGain,
+  kGraphicEQ2kHzGain,
+  kGraphicEQ4kHzGain,
+  kGraphicEQ8kHzGain,
+  kGraphicEQ16kHzGain,
+  kGraphicEQPostLevel,
   kNumParams
 };
 
@@ -95,6 +106,8 @@ enum ECtrlTags
   kCtrlTagSlimOverlayBackdrop,
   kCtrlTagSlimKnob,
   kCtrlTagReverbIRFileBrowser,
+  kCtrlTagIRFormatIndicator,
+  kCtrlTagReverbIRFormatIndicator,
   kNumCtrlTags
 };
 
@@ -266,6 +279,7 @@ private:
   iplug::sample** _ProcessNAMStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
   iplug::sample** _ProcessGateGainStage(iplug::sample** inputs, size_t numChannels, size_t numFrames, bool active);
   iplug::sample** _ProcessSpeakerIRStage(iplug::sample** inputs, size_t numChannels, size_t numFrames);
+  iplug::sample** _ExpandNAMOutputForIR(iplug::sample** inputs, size_t numFrames, size_t numChannels);
   iplug::sample** _ProcessDCBlockerStage(iplug::sample** inputs, size_t numChannels, size_t numFrames,
                                         double sampleRate);
   // Loads a NAM model and stores it to mStagedNAM
@@ -275,7 +289,6 @@ private:
   // Return status code so that error messages can be relayed if
   // it wasn't successful.
   dsp::wav::LoadReturnCode _StageIR(const WDL_String& irPath);
-  dsp::wav::LoadReturnCode _StageReverbIR(const WDL_String& irPath);
 
   bool _HaveModel() const { return this->mModel != nullptr; };
   // Prepare the input & output buffers
@@ -297,7 +310,6 @@ private:
   void _SetInputGain();
   void _SetOutputGain();
   void _ApplySlimParamToLoadedNAMs();
-  void _ApplyReverbIRParams();
   void _ApplyPreEQParams();
   void _ApplyPostEQParams();
 
@@ -307,6 +319,7 @@ private:
   int _UnserializeStateWithKnownVersion(const iplug::IByteChunk& chunk, int startPos);
   // Hopefully 0.7.3-0.7.8, but no gurantees
   int _UnserializeStateWithUnknownVersion(const iplug::IByteChunk& chunk, int startPos);
+  int _UnserializeIRFormatExtension(const iplug::IByteChunk& chunk, int startPos);
 
   // Update all controls that depend on a model
   void _UpdateControlsFromModel();
@@ -344,6 +357,8 @@ private:
   // Manages switching what DSP is being used.
   std::unique_ptr<ResamplingNAM> mStagedModel;
   std::unique_ptr<dsp::ImpulseResponse> mStagedIR;
+  std::unique_ptr<dsp::ImpulseResponse> mRetiredIR;
+  std::mutex mSpeakerIRExchangeMutex;
   // Flags to take away the modules at a safe time.
   std::atomic<bool> mShouldRemoveModel = false;
   std::atomic<bool> mShouldRemoveIR = false;
@@ -357,8 +372,7 @@ private:
   // deliberately return their input buffers unchanged.
   danger::signal_chain::PreEQStage mPreEQStage;
   danger::signal_chain::CompressorStage mCompressorStage;
-  danger::signal_chain::PostEQStage mPostEQStage;
-  danger::signal_chain::ReverbIRStage mReverbIRStage;
+  danger::signal_chain::GraphicEQStage mPostEQStage;
 
   // Post-IR filters
   recursive_linear_filter::HighPass mHighPass;
@@ -370,7 +384,9 @@ private:
   WDL_String mIRPath;
   // Reverb IR is independent from the existing Speaker IR.
   WDL_String mReverbIRPath;
-  std::atomic<bool> mReverbIRLoadFailed = false;
+  // Persisted UI/state metadata. The loaded IR remains authoritative; these
+  // values provide safe legacy defaults before asynchronous staging completes.
+  std::atomic<int> mIRChannelFormat{1};
 
   WDL_String mHighLightColor{PluginColors::NAM_THEMECOLOR.ToColorCode()};
 

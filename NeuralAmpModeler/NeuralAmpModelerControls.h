@@ -50,6 +50,25 @@ public:
   }
 };
 
+// A bipolar graphic-EQ fader with a persistent centre reference. The normal
+// IVSlider behaviour (automation, text entry and hit testing) is unchanged.
+class NAMGraphicEQSliderControl : public IVSliderControl
+{
+public:
+  NAMGraphicEQSliderControl(const IRECT& bounds, const int paramIdx, const char* label, const IVStyle& style)
+  : IVSliderControl(bounds, paramIdx, label, style, true, EDirection::Vertical, DEFAULT_GEARING, 8.0f, 3.0f, true)
+  {
+  }
+
+  void DrawWidget(IGraphics& g) override
+  {
+    IVSliderControl::DrawWidget(g);
+    const auto track = GetTrackBounds();
+    g.FillRect(PluginColors::NAM_THEMEFONTCOLOR.WithOpacity(0.7f),
+               IRECT(track.L - 3.0f, track.MH() - 0.75f, track.R + 3.0f, track.MH() + 0.75f));
+  }
+};
+
 class NAMCircleButtonControl : public ISVGButtonControl
 {
 public:

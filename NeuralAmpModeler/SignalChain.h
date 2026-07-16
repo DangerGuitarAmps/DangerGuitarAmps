@@ -483,6 +483,155 @@ private:
   std::array<double*, kMaximumChannels> mOutputPointers{};
 };
 
+class GraphicEQStage
+{
+public:
+  static constexpr std::size_t kMaximumChannels = 2;
+  static constexpr std::size_t kNumBands = 9;
+  static constexpr double kQ = 1.4;
+  static constexpr std::array<double, kNumBands> kCenterFrequencies{
+    62.5, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0};
+
+  void Prepare(const double sampleRate, const std::size_t maxBlockSize)
+  {
+    mSampleRate = std::max(sampleRate, 1.0);
+    mMaxBlockSize = std::max<std::size_t>(maxBlockSize, 1);
+    for (auto& channel : mOutput)
+      channel.resize(mMaxBlockSize);
+    for (std::size_t channel = 0; channel < kMaximumChannels; ++channel)
+      mOutputPointers[channel] = mOutput[channel].data();
+    mSmoothingCoefficient = 1.0 - std::exp(-1.0 / (0.02 * mSampleRate));
+    Reset();
+    UpdateCoefficientTargets();
+    for (auto& filter : mBands)
+      filter.SnapToTarget();
+    mProcessedMix = mBypassed.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+    mSmoothedPostGain = mPostGain.load(std::memory_order_relaxed);
+    mCoefficientsDirty.store(false, std::memory_order_release);
+  }
+
+  void Reset() noexcept
+  {
+    for (auto& filter : mBands)
+      filter.Reset();
+  }
+
+  double** Process(double** inputs, const std::size_t numChannels, const std::size_t numFrames) noexcept
+  {
+    if (numChannels == 0 || numChannels > kMaximumChannels || numFrames == 0 || numFrames > mMaxBlockSize)
+      return inputs;
+    const double targetMix = mBypassed.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+    if (targetMix == 0.0 && mProcessedMix == 0.0)
+      return inputs;
+    if (mCoefficientsDirty.exchange(false, std::memory_order_acq_rel))
+      UpdateCoefficientTargets();
+
+    const double targetPostGain = mPostGain.load(std::memory_order_relaxed);
+    for (std::size_t frame = 0; frame < numFrames; ++frame)
+    {
+      for (auto& filter : mBands)
+        filter.AdvanceCoefficients(mSmoothingCoefficient);
+      mSmoothedPostGain += mSmoothingCoefficient * (targetPostGain - mSmoothedPostGain);
+      mProcessedMix += mSmoothingCoefficient * (targetMix - mProcessedMix);
+      if (std::abs(targetMix - mProcessedMix) < 1.0e-9)
+        mProcessedMix = targetMix;
+
+      for (std::size_t channel = 0; channel < numChannels; ++channel)
+      {
+        const double dry = inputs[channel][frame];
+        double wet = dry;
+        for (auto& filter : mBands)
+          wet = filter.ProcessSample(wet, channel);
+        wet *= mSmoothedPostGain;
+        mOutput[channel][frame] = dry + mProcessedMix * (wet - dry);
+      }
+    }
+    return mOutputPointers.data();
+  }
+
+  void SetBypassed(const bool bypassed) noexcept { mBypassed.store(bypassed, std::memory_order_relaxed); }
+  void SetBandGain(const std::size_t band, const double gainDB) noexcept
+  {
+    if (band >= kNumBands)
+      return;
+    mBandGainDB[band].store(std::clamp(gainDB, -12.0, 12.0), std::memory_order_relaxed);
+    mCoefficientsDirty.store(true, std::memory_order_release);
+  }
+  void SetPostLevelDB(const double gainDB) noexcept
+  {
+    mPostGain.store(std::pow(10.0, std::clamp(gainDB, -12.0, 6.0) / 20.0), std::memory_order_relaxed);
+  }
+
+private:
+  struct Biquad
+  {
+    void SetCoefficients(const double nb0, const double nb1, const double nb2, const double na0, const double na1,
+                         const double na2) noexcept
+    {
+      targetB0.store(nb0 / na0, std::memory_order_relaxed);
+      targetB1.store(nb1 / na0, std::memory_order_relaxed);
+      targetB2.store(nb2 / na0, std::memory_order_relaxed);
+      targetA1.store(na1 / na0, std::memory_order_relaxed);
+      targetA2.store(na2 / na0, std::memory_order_relaxed);
+    }
+    void AdvanceCoefficients(const double coefficient) noexcept
+    {
+      b0 += coefficient * (targetB0.load(std::memory_order_relaxed) - b0);
+      b1 += coefficient * (targetB1.load(std::memory_order_relaxed) - b1);
+      b2 += coefficient * (targetB2.load(std::memory_order_relaxed) - b2);
+      a1 += coefficient * (targetA1.load(std::memory_order_relaxed) - a1);
+      a2 += coefficient * (targetA2.load(std::memory_order_relaxed) - a2);
+    }
+    void SnapToTarget() noexcept
+    {
+      b0 = targetB0.load(std::memory_order_relaxed);
+      b1 = targetB1.load(std::memory_order_relaxed);
+      b2 = targetB2.load(std::memory_order_relaxed);
+      a1 = targetA1.load(std::memory_order_relaxed);
+      a2 = targetA2.load(std::memory_order_relaxed);
+    }
+    double ProcessSample(const double input, const std::size_t channel) noexcept
+    {
+      const double output = b0 * input + z1[channel];
+      z1[channel] = b1 * input - a1 * output + z2[channel];
+      z2[channel] = b2 * input - a2 * output;
+      return output;
+    }
+    void Reset() noexcept { z1.fill(0.0); z2.fill(0.0); }
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
+    std::atomic<double> targetB0{1.0}, targetB1{0.0}, targetB2{0.0}, targetA1{0.0}, targetA2{0.0};
+    std::array<double, kMaximumChannels> z1{}, z2{};
+  };
+
+  void UpdateCoefficientTargets() noexcept
+  {
+    for (std::size_t band = 0; band < kNumBands; ++band)
+    {
+      const double frequency = std::min(kCenterFrequencies[band], 0.49 * mSampleRate);
+      const double gainDB = mBandGainDB[band].load(std::memory_order_relaxed);
+      const double a = std::pow(10.0, gainDB / 40.0);
+      const double omega = 2.0 * MATH_PI * frequency / mSampleRate;
+      const double alpha = std::sin(omega) / (2.0 * kQ);
+      const double cosine = std::cos(omega);
+      mBands[band].SetCoefficients(1.0 + alpha * a, -2.0 * cosine, 1.0 - alpha * a,
+                                   1.0 + alpha / a, -2.0 * cosine, 1.0 - alpha / a);
+    }
+  }
+
+  std::atomic<bool> mBypassed{true};
+  std::atomic<bool> mCoefficientsDirty{true};
+  std::array<std::atomic<double>, kNumBands> mBandGainDB{};
+  std::atomic<double> mPostGain{1.0};
+  double mSampleRate = 48000.0;
+  std::size_t mMaxBlockSize = 1;
+  double mSmoothingCoefficient = 1.0;
+  double mProcessedMix = 0.0;
+  double mSmoothedPostGain = 1.0;
+  std::array<Biquad, kNumBands> mBands;
+  std::array<std::vector<double>, kMaximumChannels> mOutput;
+  std::array<double*, kMaximumChannels> mOutputPointers{};
+};
+
 // An internal-only reverb convolution stage. Host parameters, persistence and
 // UI integration are intentionally deferred. File loading and buffer preparation
 // happen in StageFile()/Prepare(), never in Process().
@@ -567,6 +716,11 @@ public:
     mExchangeMutex.unlock();
   }
 
+  std::size_t GetActiveIRChannels() const noexcept
+  {
+    return mActive != nullptr ? mActive->mConvolution->GetNumIRChannels() : 1;
+  }
+
   double** Process(double** inputs, const std::size_t numChannels, const std::size_t numFrames) noexcept
   {
     State* state = mActive.get();
@@ -585,39 +739,30 @@ public:
       state->mHighCut.SetParams(highCutParams);
     }
 
-    // The shared convolution implementation is mono. Collapse any future
-    // multichannel input to mono without modifying the caller's buffer.
-    for (std::size_t frame = 0; frame < numFrames; ++frame)
-    {
-      double mono = 0.0;
-      for (std::size_t channel = 0; channel < numChannels; ++channel)
-        mono += inputs[channel][frame];
-      state->mMonoInput[frame] = mono / static_cast<double>(numChannels);
-    }
-
     const std::size_t delaySamples = std::min(
-      state->mDelayLine.size() - 1,
+      state->mDelayLine[0].size() - 1,
       static_cast<std::size_t>(mPreDelaySeconds.load(std::memory_order_relaxed) * state->mSampleRate));
     for (std::size_t frame = 0; frame < numFrames; ++frame)
     {
-      state->mDelayLine[state->mDelayWrite] = state->mMonoInput[frame];
-      const std::size_t read = (state->mDelayWrite + state->mDelayLine.size() - delaySamples) % state->mDelayLine.size();
-      state->mPreDelayed[frame] = state->mDelayLine[read];
-      state->mDelayWrite = (state->mDelayWrite + 1) % state->mDelayLine.size();
+      const std::size_t read = (state->mDelayWrite + state->mDelayLine[0].size() - delaySamples) % state->mDelayLine[0].size();
+      for (std::size_t channel = 0; channel < numChannels; ++channel)
+      {
+        state->mDelayLine[channel][state->mDelayWrite] = inputs[channel][frame];
+        state->mPreDelayed[channel][frame] = state->mDelayLine[channel][read];
+      }
+      state->mDelayWrite = (state->mDelayWrite + 1) % state->mDelayLine[0].size();
     }
 
-    double** wet = state->mConvolution->Process(state->mPreDelayPointers.data(), 1, numFrames);
-    wet = state->mLowCut.Process(wet, 1, numFrames);
-    wet = state->mHighCut.Process(wet, 1, numFrames);
+    double** wet = state->mConvolution->Process(state->mPreDelayPointers.data(), numChannels, numFrames);
+    wet = state->mLowCut.Process(wet, numChannels, numFrames);
+    wet = state->mHighCut.Process(wet, numChannels, numFrames);
 
     const double wetGain = mWetOutputGain.load(std::memory_order_relaxed);
     const double dryMix = 1.0 - wetMix;
-    for (std::size_t frame = 0; frame < numFrames; ++frame)
-      state->mOutput[frame] = dryMix * state->mMonoInput[frame] + wetMix * wetGain * wet[0][frame];
+    for (std::size_t channel = 0; channel < numChannels; ++channel)
+      for (std::size_t frame = 0; frame < numFrames; ++frame)
+        state->mOutput[channel][frame] = dryMix * inputs[channel][frame] + wetMix * wetGain * wet[channel][frame];
 
-    // The plug-in is internally mono. If a two-channel caller is introduced,
-    // expose the same processed mono return on both channels rather than an
-    // invalid one-element pointer array.
     return state->mOutputPointers.data();
   }
 
@@ -663,12 +808,14 @@ private:
 
     void PrepareBuffers()
     {
-      mMonoInput.resize(mMaxBlockSize);
-      mPreDelayed.resize(mMaxBlockSize);
-      mOutput.resize(mMaxBlockSize);
-      mDelayLine.resize(static_cast<std::size_t>(kMaximumPreDelaySeconds * mSampleRate) + 1);
-      mPreDelayPointers = {mPreDelayed.data()};
-      mOutputPointers = {mOutput.data(), mOutput.data()};
+      for (std::size_t channel = 0; channel < 2; ++channel)
+      {
+        mPreDelayed[channel].resize(mMaxBlockSize);
+        mOutput[channel].resize(mMaxBlockSize);
+        mDelayLine[channel].resize(static_cast<std::size_t>(kMaximumPreDelaySeconds * mSampleRate) + 1);
+        mPreDelayPointers[channel] = mPreDelayed[channel].data();
+        mOutputPointers[channel] = mOutput[channel].data();
+      }
 
       recursive_linear_filter::HighPassParams lowCutParams(mSampleRate, 20.0);
       recursive_linear_filter::LowPassParams highCutParams(mSampleRate, 20000.0);
@@ -676,20 +823,19 @@ private:
       mHighCut.SetParams(highCutParams);
 
       // Prime all shared DSP buffers and convolution history off the audio thread.
-      double** wet = mConvolution->Process(mPreDelayPointers.data(), 1, mMaxBlockSize);
-      wet = mLowCut.Process(wet, 1, mMaxBlockSize);
-      mHighCut.Process(wet, 1, mMaxBlockSize);
+      double** wet = mConvolution->Process(mPreDelayPointers.data(), 2, mMaxBlockSize);
+      wet = mLowCut.Process(wet, 2, mMaxBlockSize);
+      mHighCut.Process(wet, 2, mMaxBlockSize);
     }
 
     std::unique_ptr<dsp::ImpulseResponse> mConvolution;
     double mSampleRate;
     std::size_t mMaxBlockSize;
-    std::vector<double> mMonoInput;
-    std::vector<double> mPreDelayed;
-    std::vector<double> mOutput;
-    std::vector<double> mDelayLine;
-    std::vector<double*> mPreDelayPointers;
-    std::vector<double*> mOutputPointers;
+    std::array<std::vector<double>, 2> mPreDelayed;
+    std::array<std::vector<double>, 2> mOutput;
+    std::array<std::vector<double>, 2> mDelayLine;
+    std::array<double*, 2> mPreDelayPointers{};
+    std::array<double*, 2> mOutputPointers{};
     std::size_t mDelayWrite = 0;
     recursive_linear_filter::HighPass mLowCut;
     recursive_linear_filter::LowPass mHighCut;

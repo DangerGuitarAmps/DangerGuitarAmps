@@ -23,8 +23,8 @@ using namespace igraphics;
 const double kDCBlockerFrequency = 5.0;
 
 // Styles
-const float kControlLabelTextSize = 17.0f;
-const float kSectionHeadingTextSize = 15.0f;
+const float kControlLabelTextSize = 14.0f;
+const float kSectionHeadingTextSize = 13.0f;
 const float kSectionHeadingTopPadding = 4.0f;
 const float kSectionHeadingHeight = 18.0f;
 const float kSectionHeadingBottomPadding = 4.0f;
@@ -55,22 +55,22 @@ const IVStyle style =
           DEFAULT_SHADOW_OFFSET,
           DEFAULT_WIDGET_FRAC,
           DEFAULT_WIDGET_ANGLE};
-const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(27, PluginColors::OFF_WHITE, "Michroma-Regular"))
+const IVStyle titleStyle = DEFAULT_STYLE.WithValueText(IText(23, PluginColors::OFF_WHITE, "Michroma-Regular"))
                              .WithDrawFrame(false)
                              .WithShadowOffset(1.f);
-const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(10, PluginColors::NAM_3, "Roboto-Regular"))
+const IVStyle shellLegendStyle = DEFAULT_STYLE.WithValueText(IText(9, PluginColors::NAM_3, "Roboto-Regular"))
                                    .WithDrawFrame(false);
 const IVStyle sectionHeadingStyle =
   DEFAULT_STYLE.WithValueText(IText(kSectionHeadingTextSize, PluginColors::OFF_WHITE, "Roboto-Regular"))
     .WithDrawFrame(false)
     .WithDrawShadows(false);
 const IVStyle sectionControlStyle =
-  style.WithLabelText(style.labelText.WithSize(kControlLabelTextSize)).WithValueText(style.valueText.WithSize(13.f));
+  style.WithLabelText(style.labelText.WithSize(kControlLabelTextSize)).WithValueText(style.valueText.WithSize(11.f));
 const float kSectionKnobDiameter = 80.0f;
 const float kSectionBypassX = 55.0f;
 const float kSectionBypassWidth = 100.0f;
 const float kSectionBypassHeight = 40.0f;
-const float kCompactControlTextSize = 11.0f;
+const float kCompactControlTextSize = 10.0f;
 const IVStyle compactControlStyle = style.WithShowLabel(false)
                                       .WithDrawShadows(false)
                                       .WithValueText(style.valueText.WithSize(kCompactControlTextSize)
@@ -132,7 +132,6 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kReverbIRLowCut)->InitDouble("ReverbIRLowCut", 20.0, 20.0, 1000.0, 1.0, "Hz");
   GetParam(kReverbIRHighCut)->InitDouble("ReverbIRHighCut", 20000.0, 1000.0, 20000.0, 1.0, "Hz");
   GetParam(kReverbIRWetLevel)->InitGain("ReverbIRWetLevel", 0.0, -24.0, 12.0, 0.1);
-  _ApplyReverbIRParams();
   GetParam(kPreEQBypass)->InitBool("PreEQBypass", true);
   GetParam(kPreEQLowCut)->InitDouble("PreEQLowCut", 120.0, 20.0, 300.0, 1.0, "Hz");
   GetParam(kPreEQLowShelfGain)->InitGain("PreEQLowShelfGain", 0.0, -12.0, 12.0, 0.1);
@@ -155,6 +154,16 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kPostEQBand4Gain)->InitGain("PostEQBand4Gain", 0.0, -18.0, 12.0, 0.1);
   GetParam(kPostEQBand4Q)->InitDouble("PostEQBand4Q", 1.0, 0.3, 6.0, 0.01);
   GetParam(kPostEQHighCut)->InitDouble("PostEQHighCut", 20000.0, 3000.0, 20000.0, 1.0, "Hz");
+  GetParam(kGraphicEQ62HzGain)->InitGain("Post EQ 62.5 Hz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ125HzGain)->InitGain("Post EQ 125 Hz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ250HzGain)->InitGain("Post EQ 250 Hz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ500HzGain)->InitGain("Post EQ 500 Hz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ1kHzGain)->InitGain("Post EQ 1 kHz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ2kHzGain)->InitGain("Post EQ 2 kHz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ4kHzGain)->InitGain("Post EQ 4 kHz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ8kHzGain)->InitGain("Post EQ 8 kHz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQ16kHzGain)->InitGain("Post EQ 16 kHz", 0.0, -12.0, 12.0, 0.1);
+  GetParam(kGraphicEQPostLevel)->InitGain("Post Level", 0.0, -12.0, 6.0, 0.1);
   _ApplyPostEQParams();
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
@@ -200,36 +209,46 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto meterBackgroundBitmap = pGraphics->LoadBitmap(METERBACKGROUND_FN);
 
     const auto b = pGraphics->GetBounds();
-    const auto mainArea = b.GetPadded(-20);
-    const auto contentArea = mainArea.GetPadded(-10);
-    const auto titleHeight = 62.0f;
+    constexpr float kDesignWidth = 600.0f;
+    constexpr float kDesignHeight = 800.0f;
+    const float scaleX = b.W() / kDesignWidth;
+    const float scaleY = b.H() / kDesignHeight;
+    const auto X = [scaleX](const float value) { return value * scaleX; };
+    const auto Y = [scaleY](const float value) { return value * scaleY; };
+    const auto R = [scaleX, scaleY](const float left, const float top, const float right, const float bottom) {
+      return IRECT(left * scaleX, top * scaleY, right * scaleX, bottom * scaleY);
+    };
+
+    const auto mainArea = b.GetPadded(-X(16.0f));
+    const auto contentArea = mainArea.GetPadded(-X(8.0f));
+    const auto titleHeight = Y(62.0f);
     const auto titleArea = contentArea.GetFromTop(titleHeight);
-    const auto logoArea = titleArea.GetFromLeft(44.0f).GetCentredInside(36.0f, 32.0f);
-    const auto productTitleArea = titleArea.GetReducedFromLeft(48.0f).GetFromTop(38.0f);
-    const auto productLegendArea = titleArea.GetReducedFromLeft(48.0f).GetFromBottom(17.0f);
+    const auto logoArea = titleArea.GetFromLeft(X(44.0f)).GetCentredInside(X(36.0f), Y(32.0f));
+    const auto productTitleArea = titleArea.GetReducedFromLeft(X(48.0f)).GetFromTop(Y(38.0f));
+    const auto productLegendArea = titleArea.GetReducedFromLeft(X(48.0f)).GetFromBottom(Y(17.0f));
 
     // Shared section-title geometry keeps headings clear of panel borders.
-    const auto sectionTitleArea = [](const IRECT& section) {
-      return IRECT(section.L, section.T + kSectionHeadingTopPadding, section.R,
-                   section.T + kSectionHeadingTopPadding + kSectionHeadingHeight);
+    const auto sectionTitleArea = [scaleY](const IRECT& section) {
+      return IRECT(section.L, section.T + kSectionHeadingTopPadding * scaleY, section.R,
+                   section.T + (kSectionHeadingTopPadding + kSectionHeadingHeight) * scaleY);
     };
-    const auto topSectionArea = IRECT(45.0f, 82.0f, b.R - 45.0f, 260.0f);
-    const auto inputKnobArea = IRECT(110.0f, 111.0f, 190.0f, 231.0f);
-    const auto gateSwitchArea = IRECT(225.0f, 121.0f, 275.0f, 221.0f);
-    const auto noiseGateArea = IRECT(310.0f, 111.0f, 390.0f, 231.0f);
-    const auto outputKnobArea = IRECT(410.0f, 111.0f, 490.0f, 231.0f);
+    const auto topSectionArea = R(45.0f, 68.0f, 555.0f, 210.0f);
+    const auto inputKnobArea = R(110.0f, 87.0f, 190.0f, 199.0f);
+    const auto gateSwitchArea = R(225.0f, 92.0f, 275.0f, 194.0f);
+    const auto noiseGateArea = R(310.0f, 87.0f, 390.0f, 199.0f);
+    const auto outputKnobArea = R(410.0f, 87.0f, 490.0f, 199.0f);
     const auto topSectionTitleArea = sectionTitleArea(topSectionArea);
 
     // Compact Pre-EQ panel. The logical render and hit rectangles are the
     // same, so scale-mode resizing preserves control alignment.
-    const auto preEQSectionArea = IRECT(45.0f, 268.0f, b.R - 45.0f, 412.0f);
+    const auto preEQSectionArea = R(45.0f, 216.0f, 555.0f, 350.0f);
     const auto preEQTitleArea = sectionTitleArea(preEQSectionArea);
-    const auto sectionBypassArea = [](const float top) {
-      return IRECT(kSectionBypassX, top, kSectionBypassX + kSectionBypassWidth, top + kSectionBypassHeight);
+    const auto sectionBypassArea = [&R](const float top) {
+      return R(kSectionBypassX, top, kSectionBypassX + kSectionBypassWidth, top + kSectionBypassHeight);
     };
-    const auto preEQBypassArea = sectionBypassArea(308.0f);
-    const auto preEQKnobsArea = IRECT(155.0f, preEQTitleArea.B + kSectionHeadingBottomPadding,
-                                      b.R - 45.0f, 412.0f);
+    const auto preEQBypassArea = sectionBypassArea(253.0f);
+    const auto preEQKnobsArea = IRECT(X(155.0f), preEQTitleArea.B + Y(kSectionHeadingBottomPadding),
+                                      X(555.0f), Y(350.0f));
     const auto preEQLowCutArea = preEQKnobsArea.GetGridCell(0, 0, 1, 5);
     const auto preEQLowShelfArea = preEQKnobsArea.GetGridCell(0, 1, 1, 5);
     const auto preEQMidFrequencyArea = preEQKnobsArea.GetGridCell(0, 2, 1, 5);
@@ -237,48 +256,29 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto preEQHighShelfArea = preEQKnobsArea.GetGridCell(0, 4, 1, 5);
 
     // Areas for model and IR
-    const auto fileWidth = 200.0f;
-    const auto irYOffset = 34.0f;
-    const auto modelSectionArea = IRECT(45.0f, 420.0f, b.R - 45.0f, 520.0f);
+    const auto fileWidth = X(200.0f);
+    const auto irYOffset = Y(34.0f);
+    const auto modelSectionArea = R(45.0f, 356.0f, 555.0f, 450.0f);
     const auto modelSectionTitleArea = sectionTitleArea(modelSectionArea);
-    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, 450.0f, b.MW() + fileWidth * 0.5f, 480.0f);
+    const auto modelArea = IRECT(b.MW() - fileWidth * 0.5f, Y(382.0f), b.MW() + fileWidth * 0.5f, Y(412.0f));
     const auto slimIconArea =
-      IRECT(modelArea.R + 6.f, modelArea.MH() - 14.f, modelArea.R + 6.f + 2.f * 28.f, modelArea.MH() + 14.f);
-    const auto modelIconArea = modelArea.GetFromLeft(30).GetTranslated(-40, 10);
+      IRECT(modelArea.R + X(6.f), modelArea.MH() - Y(14.f), modelArea.R + X(62.f), modelArea.MH() + Y(14.f));
+    const auto modelIconArea = modelArea.GetFromLeft(X(30)).GetTranslated(-X(40), Y(10));
     const auto irArea = modelArea.GetVShifted(irYOffset);
-    const auto irSwitchArea = irArea.GetFromLeft(30.0f).GetHShifted(-40.0f).GetScaledAboutCentre(0.6f);
+    const auto irFormatArea = IRECT(irArea.R + X(5.0f), irArea.T, irArea.R + X(55.0f), irArea.B);
+    const auto irSwitchArea = irArea.GetFromLeft(X(30.0f)).GetHShifted(-X(40.0f)).GetScaledAboutCentre(0.6f);
 
-    // Six-column Post-EQ panel: cut filters at the edges and one grouped
-    // frequency/gain/Q column per parametric band.
-    const auto postEQSectionArea = IRECT(45.0f, 528.0f, b.R - 45.0f, 778.0f);
+    // Nine fixed-frequency bands and a post-EQ level occupy one compact rack panel.
+    const auto postEQSectionArea = R(45.0f, 456.0f, 555.0f, 790.0f);
     const auto postEQTitleArea = sectionTitleArea(postEQSectionArea);
-    const auto postEQBypassArea = sectionBypassArea(530.0f);
-    const auto postEQColumnsArea = IRECT(105.0f, 556.0f, b.R - 55.0f, 734.0f);
-    const auto postEQBandLabelsArea = IRECT(postEQColumnsArea.L, 552.0f, postEQColumnsArea.R, 570.0f);
-    const auto postEQFrequencyRow = IRECT(postEQColumnsArea.L, 570.0f, postEQColumnsArea.R, 650.0f);
-    const auto postEQGainRow = IRECT(postEQColumnsArea.L, 650.0f, postEQColumnsArea.R, 734.0f);
-    const auto postEQLowCutSliderArea = IRECT(45.0f, 745.0f, 285.0f, 776.0f);
-    const auto postEQHighCutSliderArea = IRECT(315.0f, 745.0f, 555.0f, 776.0f);
-    const auto primaryPostEQArea = [](const IRECT& row, const int column) {
-      return row.GetGridCell(0, column, 1, 4).GetCentredInside(kSectionKnobDiameter, row.H());
-    };
-
-    // Compact Reverb IR panel. Render and hit rectangles use the same logical
-    // bounds so scale-mode resizing preserves alignment.
-    const auto reverbSectionArea = IRECT(45.0f, 786.0f, b.R - 45.0f, 968.0f);
-    const auto reverbTitleArea = sectionTitleArea(reverbSectionArea);
-    const auto reverbBrowserArea = IRECT(b.MW() - 100.0f, 812.0f, b.MW() + 100.0f, 842.0f);
-    const auto reverbBypassArea = sectionBypassArea(812.0f);
-    const auto reverbKnobsArea = IRECT(85.0f, 846.0f, b.R - 85.0f, 966.0f);
-    const auto reverbMixArea = reverbKnobsArea.GetGridCell(0, 0, 1, 5);
-    const auto reverbPreDelayArea = reverbKnobsArea.GetGridCell(0, 1, 1, 5);
-    const auto reverbLowCutArea = reverbKnobsArea.GetGridCell(0, 2, 1, 5);
-    const auto reverbHighCutArea = reverbKnobsArea.GetGridCell(0, 3, 1, 5);
-    const auto reverbWetLevelArea = reverbKnobsArea.GetGridCell(0, 4, 1, 5);
+    const auto postEQBypassArea = sectionBypassArea(474.0f);
+    const auto postEQFlatArea = R(472.0f, 474.0f, 535.0f, 504.0f);
+    const auto graphicEQArea = R(72.0f, 510.0f, 470.0f, 770.0f);
+    const auto postLevelArea = R(482.0f, 510.0f, 535.0f, 770.0f);
 
     // Areas for meters
-    const auto inputMeterArea = IRECT(10.0f, 82.0f, 40.0f, 260.0f);
-    const auto outputMeterArea = IRECT(b.R - 40.0f, 82.0f, b.R - 10.0f, 260.0f);
+    const auto inputMeterArea = R(10.0f, 68.0f, 40.0f, 210.0f);
+    const auto outputMeterArea = R(560.0f, 68.0f, 590.0f, 210.0f);
 
     // Misc Areas
     const auto settingsButtonArea = CornerButtonArea(b);
@@ -317,38 +317,6 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       }
     };
 
-    auto loadReverbIRCompletionHandler = [&](const WDL_String& fileName, const WDL_String& path) {
-      if (!fileName.GetLength())
-        return;
-
-      const WDL_String previousReverbIRPath(mReverbIRPath);
-      const dsp::wav::LoadReturnCode retCode = _StageReverbIR(fileName);
-      if (retCode == dsp::wav::LoadReturnCode::SUCCESS)
-      {
-        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR,
-                                   mReverbIRPath.GetLength(), mReverbIRPath.Get());
-        return;
-      }
-
-      std::stringstream message;
-      message << "Failed to load Reverb IR file " << fileName.Get() << ":\n";
-      message << dsp::wav::GetMsgForLoadReturnCode(retCode);
-      _ShowMessageBox(GetUI(), message.str().c_str(), "Failed to load Reverb IR!", kMB_OK);
-
-      // Candidate validation failed before exchange, so keep the previous IR
-      // active and restore its filename in the browser.
-      if (previousReverbIRPath.GetLength())
-      {
-        mReverbIRLoadFailed = false;
-        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR,
-                                   previousReverbIRPath.GetLength(), previousReverbIRPath.Get());
-      }
-      else
-      {
-        SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadFailed);
-      }
-    };
-
     pGraphics->AttachControl(new ISVGControl(b, dangerBackgroundSVG));
     pGraphics->AttachControl(new ISVGControl(logoArea, dangerLogoSVG));
     pGraphics->AttachControl(new IVLabelControl(productTitleArea, "DANGER GUITAR AMPS", titleStyle));
@@ -366,7 +334,6 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const std::string defaultNamFileString = "Select model...";
     const std::string defaultIRString = "Select IR...";
 #endif
-    const std::string defaultReverbIRString = "No Reverb IR Loaded";
     // Getting started page listing additional resources
     const char* const getUrl = "https://www.neuralampmodeler.com/users#comp-marb84o5";
     pGraphics->AttachControl(
@@ -404,15 +371,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                                 fileSVG, crossSVG, leftArrowSVG, rightArrowSVG, fileBackgroundBitmap, globeSVG,
                                 "Get IRs", getUrl),
       kCtrlTagIRFileBrowser);
-    pGraphics->AttachControl(new IVLabelControl(reverbTitleArea, "REVERB IR", sectionHeadingStyle));
-    pGraphics->AttachControl(
-      new NAMFileBrowserControl(reverbBrowserArea, kMsgTagClearReverbIR, defaultReverbIRString.c_str(), "wav",
-                                loadReverbIRCompletionHandler, style, fileSVG, crossSVG, leftArrowSVG, rightArrowSVG,
-                                fileBackgroundBitmap, globeSVG, "Get IRs", getUrl),
-      kCtrlTagReverbIRFileBrowser);
-    pGraphics->AttachControl(
-      new NAMSwitchControl(reverbBypassArea, kReverbIRBypass, "Bypass", sectionControlStyle,
-                           switchHandleBitmap));
+    pGraphics->AttachControl(new IVLabelControl(irFormatArea, "", shellLegendStyle), kCtrlTagIRFormatIndicator);
     pGraphics->AttachControl(
       new NAMSwitchControl(preEQBypassArea, kPreEQBypass, "Bypass", sectionControlStyle,
                            switchHandleBitmap));
@@ -446,71 +405,40 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const bool preEQBypassed = GetParam(kPreEQBypass)->Bool();
     pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
                                  [preEQBypassed](IControl* pControl) { pControl->SetDisabled(preEQBypassed); });
-    pGraphics->AttachControl(
-      new IVSliderControl(postEQLowCutSliderArea, kPostEQLowCut, " ", postEQCutSliderStyle, true,
-                          EDirection::Horizontal, DEFAULT_GEARING, 8.0f, 2.0f, true),
-      -1, "POST_EQ_CONTROLS");
-    pGraphics->AttachControl(
-      new IVSliderControl(postEQHighCutSliderArea, kPostEQHighCut, " ", postEQCutSliderStyle, true,
-                          EDirection::Horizontal, DEFAULT_GEARING, 8.0f, 2.0f, true),
-      -1, "POST_EQ_CONTROLS");
-    const std::array<int, 4> postEQFrequencyParams{kPostEQBand1Frequency, kPostEQBand2Frequency,
-                                                   kPostEQBand3Frequency, kPostEQBand4Frequency};
-    const std::array<int, 4> postEQGainParams{kPostEQBand1Gain, kPostEQBand2Gain, kPostEQBand3Gain,
-                                              kPostEQBand4Gain};
-    for (int band = 0; band < 4; ++band)
+    const std::array<int, 9> graphicEQParams{
+      kGraphicEQ62HzGain, kGraphicEQ125HzGain, kGraphicEQ250HzGain, kGraphicEQ500HzGain, kGraphicEQ1kHzGain,
+      kGraphicEQ2kHzGain, kGraphicEQ4kHzGain, kGraphicEQ8kHzGain, kGraphicEQ16kHzGain};
+    const std::array<const char*, 9> graphicEQLabels{"62.5", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
+    for (int band = 0; band < 9; ++band)
     {
-      const int column = band;
-      pGraphics->AttachControl(
-        new NAMPostEQBitmapKnobControl(primaryPostEQArea(postEQFrequencyRow, column), postEQFrequencyParams[band],
-                                       kSectionKnobDiameter,
-                                       compactControlStyle, knobBackgroundBitmap),
-        -1, "POST_EQ_CONTROLS");
-      pGraphics->AttachControl(
-        new NAMPostEQBitmapKnobControl(primaryPostEQArea(postEQGainRow, column), postEQGainParams[band],
-                                       kSectionKnobDiameter, compactControlStyle, knobBackgroundBitmap),
-        -1, "POST_EQ_CONTROLS");
+      const auto cell = graphicEQArea.GetGridCell(0, band, 1, 9).GetPadded(-X(3.0f));
+      pGraphics->AttachControl(new NAMGraphicEQSliderControl(cell, graphicEQParams[band], graphicEQLabels[band],
+                                                             postEQCutSliderStyle),
+                               -1, "POST_EQ_CONTROLS");
     }
-    // Typography is attached after all Post-EQ knob graphics.
+    pGraphics->AttachControl(
+      new IVSliderControl(postLevelArea, kGraphicEQPostLevel, "Level", postEQCutSliderStyle, true,
+                          EDirection::Vertical, DEFAULT_GEARING, 8.0f, 3.0f, true),
+      -1, "POST_EQ_CONTROLS");
+    const std::array<int, 10> graphicEQFlatParams{
+      kGraphicEQ62HzGain, kGraphicEQ125HzGain, kGraphicEQ250HzGain, kGraphicEQ500HzGain, kGraphicEQ1kHzGain,
+      kGraphicEQ2kHzGain, kGraphicEQ4kHzGain, kGraphicEQ8kHzGain, kGraphicEQ16kHzGain, kGraphicEQPostLevel};
+    pGraphics->AttachControl(new IVButtonControl(
+      postEQFlatArea,
+      [graphicEQFlatParams](IControl* pCaller) {
+        auto* delegate = pCaller->GetDelegate();
+        for (const int paramIdx : graphicEQFlatParams)
+        {
+          delegate->BeginInformHostOfParamChangeFromUI(paramIdx);
+          const double normalizedZero = paramIdx == kGraphicEQPostLevel ? 2.0 / 3.0 : 0.5;
+          delegate->SendParameterValueFromUI(paramIdx, normalizedZero);
+          delegate->EndInformHostOfParamChangeFromUI(paramIdx);
+        }
+      }, "FLAT", compactControlStyle));
     pGraphics->AttachControl(new IVLabelControl(postEQTitleArea, "POST-EQ", sectionHeadingStyle));
-    const std::array<const char*, 4> postEQBandLabels{"Low", "Low Mid", "High Mid", "High"};
-    for (int band = 0; band < 4; ++band)
-    {
-      pGraphics->AttachControl(new IVLabelControl(postEQBandLabelsArea.GetGridCell(0, band, 1, 4),
-                                                  postEQBandLabels[band], postEQTextStyle));
-    }
-    pGraphics->AttachControl(new IVLabelControl(IRECT(25.0f, postEQGainRow.T, 100.0f, postEQGainRow.B), "Gain",
-                                                postEQTextStyle));
-    pGraphics->AttachControl(new IVLabelControl(IRECT(25.0f, postEQFrequencyRow.T, 100.0f,
-                                                      postEQFrequencyRow.B),
-                                                "Freq", postEQTextStyle));
-    pGraphics->AttachControl(new IVLabelControl(IRECT(postEQLowCutSliderArea.L, 734.0f,
-                                                      postEQLowCutSliderArea.R, postEQLowCutSliderArea.T),
-                                                "Low Cut", postEQTextStyle));
-    pGraphics->AttachControl(new IVLabelControl(IRECT(postEQHighCutSliderArea.L, 734.0f,
-                                                      postEQHighCutSliderArea.R, postEQHighCutSliderArea.T),
-                                                "High Cut", postEQTextStyle));
     const bool postEQBypassed = GetParam(kPostEQBypass)->Bool();
     pGraphics->ForControlInGroup("POST_EQ_CONTROLS",
                                  [postEQBypassed](IControl* pControl) { pControl->SetDisabled(postEQBypassed); });
-    pGraphics->AttachControl(
-      new NAMKnobControl(reverbMixArea, kReverbIRMix, "Mix", sectionControlStyle, knobBackgroundBitmap), -1,
-      "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbPreDelayArea, kReverbIRPreDelay, "Pre-Delay", sectionControlStyle,
-                                                knobBackgroundBitmap),
-                             -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbLowCutArea, kReverbIRLowCut, "Low Cut", sectionControlStyle,
-                                                knobBackgroundBitmap),
-                             -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbHighCutArea, kReverbIRHighCut, "High Cut", sectionControlStyle,
-                                                knobBackgroundBitmap),
-                             -1, "REVERB_CONTROLS");
-    pGraphics->AttachControl(new NAMKnobControl(reverbWetLevelArea, kReverbIRWetLevel, "Wet Level", sectionControlStyle,
-                                                knobBackgroundBitmap),
-                             -1, "REVERB_CONTROLS");
-    const bool reverbBypassed = GetParam(kReverbIRBypass)->Bool();
-    pGraphics->ForControlInGroup("REVERB_CONTROLS",
-                                 [reverbBypassed](IControl* pControl) { pControl->SetDisabled(reverbBypassed); });
 
     // The meters
     pGraphics->AttachControl(new NAMMeterControl(inputMeterArea, meterBackgroundBitmap, style), kCtrlTagInputMeter);
@@ -530,7 +458,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                       kCtrlTagSettingsBox)
       ->Hide(true);
 
-    const auto slimKnobArea = b.GetCentredInside(100.f, NAM_KNOB_HEIGHT + 24.f);
+    const auto slimKnobArea = b.GetCentredInside(X(100.f), Y(NAM_KNOB_HEIGHT + 24.f));
     pGraphics->AttachControl(new NAMSlimOverlayBackdropControl(b, hideSlimOverlay), kCtrlTagSlimOverlayBackdrop)
       ->Hide(true);
     pGraphics
@@ -556,7 +484,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
 {
   const size_t numChannelsExternalIn = (size_t)NInChansConnected();
   const size_t numChannelsExternalOut = (size_t)NOutChansConnected();
-  const size_t numChannelsInternal = kNumChannelsInternal;
+  const size_t numChannelsNAM = kNumChannelsNAM;
   const size_t numFrames = (size_t)nFrames;
   const double sampleRate = GetSampleRate();
 
@@ -565,33 +493,37 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   std::feholdexcept(&fe_state);
   disable_denormals();
 
-  _PrepareBuffers(numChannelsInternal, numFrames);
+  // NAM remains mono, but downstream IR stages can become stereo. Allocate
+  // both working channels before processing so the audio callback never has to
+  // grow a buffer when a staged stereo IR becomes active.
+  _PrepareBuffers(kMaximumInternalChannels, numFrames);
   // Input is collapsed to mono in preparation for the NAM.
-  _ProcessInput(inputs, numFrames, numChannelsExternalIn, numChannelsInternal);
+  _ProcessInput(inputs, numFrames, numChannelsExternalIn, numChannelsNAM);
   _ApplyDSPStaging();
+  const size_t downstreamChannels = mIR != nullptr && mIR->GetNumIRChannels() == 2 ? 2 : 1;
   const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
 
   sample** gateTriggerOutput =
-    _ProcessGateTriggerStage(mInputPointers, numChannelsInternal, numFrames, sampleRate, noiseGateActive);
-  sample** preEQOutput = mPreEQStage.Process(gateTriggerOutput, numChannelsInternal, numFrames);
-  sample** compressorOutput = mCompressorStage.Process(preEQOutput, numChannelsInternal, numFrames);
-  sample** namOutput = _ProcessNAMStage(compressorOutput, numChannelsInternal, numFrames);
-  sample** gateGainOutput = _ProcessGateGainStage(namOutput, numChannelsInternal, numFrames, noiseGateActive);
-  sample** speakerIROutput = _ProcessSpeakerIRStage(gateGainOutput, numChannelsInternal, numFrames);
-  sample** postEQOutput = mPostEQStage.Process(speakerIROutput, numChannelsInternal, numFrames);
-  sample** reverbIROutput = mReverbIRStage.Process(postEQOutput, numChannelsInternal, numFrames);
-  sample** hpfPointers = _ProcessDCBlockerStage(reverbIROutput, numChannelsInternal, numFrames, sampleRate);
+    _ProcessGateTriggerStage(mInputPointers, numChannelsNAM, numFrames, sampleRate, noiseGateActive);
+  sample** preEQOutput = mPreEQStage.Process(gateTriggerOutput, numChannelsNAM, numFrames);
+  sample** compressorOutput = mCompressorStage.Process(preEQOutput, numChannelsNAM, numFrames);
+  sample** namOutput = _ProcessNAMStage(compressorOutput, numChannelsNAM, numFrames);
+  sample** gateGainOutput = _ProcessGateGainStage(namOutput, numChannelsNAM, numFrames, noiseGateActive);
+  sample** irInput = _ExpandNAMOutputForIR(gateGainOutput, numFrames, downstreamChannels);
+  sample** speakerIROutput = _ProcessSpeakerIRStage(irInput, downstreamChannels, numFrames);
+  sample** postEQOutput = mPostEQStage.Process(speakerIROutput, downstreamChannels, numFrames);
+  sample** hpfPointers = _ProcessDCBlockerStage(postEQOutput, downstreamChannels, numFrames, sampleRate);
 
   // restore previous floating point state
   std::feupdateenv(&fe_state);
 
   // Let's get outta here
   // This is where we exit mono for whatever the output requires.
-  _ProcessOutput(hpfPointers, outputs, numFrames, numChannelsInternal, numChannelsExternalOut);
+  _ProcessOutput(hpfPointers, outputs, numFrames, downstreamChannels, numChannelsExternalOut);
   // _ProcessOutput(lpfPointers, outputs, numFrames, numChannelsInternal, numChannelsExternalOut);
   // * Output of input leveling (inputs -> mInputPointers),
   // * Output of output leveling (mOutputPointers -> outputs)
-  _UpdateMeters(mInputPointers, outputs, numFrames, numChannelsInternal, numChannelsExternalOut);
+  _UpdateMeters(mInputPointers, outputs, numFrames, numChannelsNAM, numChannelsExternalOut);
 }
 
 sample** NeuralAmpModeler::_ProcessGateTriggerStage(sample** inputs, const size_t numChannels, const size_t numFrames,
@@ -633,6 +565,15 @@ sample** NeuralAmpModeler::_ProcessSpeakerIRStage(sample** inputs, const size_t 
   return (mIR != nullptr && GetParam(kIRToggle)->Value()) ? mIR->Process(inputs, numChannels, numFrames) : inputs;
 }
 
+sample** NeuralAmpModeler::_ExpandNAMOutputForIR(sample** inputs, const size_t numFrames, const size_t numChannels)
+{
+  if (numChannels == 1)
+    return inputs;
+  for (size_t frame = 0; frame < numFrames; ++frame)
+    mOutputPointers[1][frame] = inputs[0][frame];
+  return mOutputPointers;
+}
+
 sample** NeuralAmpModeler::_ProcessDCBlockerStage(sample** inputs, const size_t numChannels, const size_t numFrames,
                                                   const double sampleRate)
 {
@@ -654,11 +595,11 @@ void NeuralAmpModeler::OnReset()
   SetTailSize(tailCycles * (int)(sampleRate / kDCBlockerFrequency));
   mInputSender.Reset(sampleRate);
   mOutputSender.Reset(sampleRate);
+  _PrepareBuffers(kMaximumInternalChannels, std::max(maxBlockSize, 1));
   // If there is a model or IR loaded, they need to be checked for resampling.
   _ResetModelAndIR(sampleRate, GetBlockSize());
   mPreEQStage.Prepare(sampleRate, maxBlockSize);
   mPostEQStage.Prepare(sampleRate, maxBlockSize);
-  mReverbIRStage.Prepare(sampleRate, maxBlockSize);
   _UpdateLatency();
 }
 
@@ -666,6 +607,16 @@ void NeuralAmpModeler::OnIdle()
 {
   mInputSender.TransmitData(*this);
   mOutputSender.TransmitData(*this);
+
+  // Format labels are editor-only state. Keep all IGraphics access off the
+  // real-time thread and show no format when no file is loaded.
+  if (auto* pGraphics = GetUI())
+  {
+    if (auto* cabinet = pGraphics->GetControlWithTag(kCtrlTagIRFormatIndicator))
+      cabinet->As<IVLabelControl>()->SetStr((mIR != nullptr || mStagedIR != nullptr)
+                                             ? (mIRChannelFormat.load(std::memory_order_relaxed) == 2 ? "STEREO" : "MONO")
+                                             : "");
+  }
 
   if (mNewModelLoadedInDSP)
   {
@@ -707,7 +658,14 @@ bool NeuralAmpModeler::SerializeState(IByteChunk& chunk) const
   chunk.PutStr(mNAMPath.Get());
   chunk.PutStr(mIRPath.Get());
   chunk.PutStr(mReverbIRPath.Get());
-  return SerializeParams(chunk);
+  const bool paramsSerialized = SerializeParams(chunk);
+  WDL_String formatMarker("DangerIRFormatV1");
+  chunk.PutStr(formatMarker.Get());
+  const int cabinetChannels = mIRChannelFormat.load(std::memory_order_relaxed);
+  const int reverbChannels = 1; // Legacy extension field retained for old readers.
+  chunk.Put(&cabinetChannels);
+  chunk.Put(&reverbChannels);
+  return paramsSerialized;
 }
 
 int NeuralAmpModeler::UnserializeState(const IByteChunk& chunk, int startPos)
@@ -748,14 +706,6 @@ void NeuralAmpModeler::OnUIOpen()
       SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed);
   }
 
-  if (mReverbIRPath.GetLength())
-  {
-    SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadedReverbIR, mReverbIRPath.GetLength(),
-                               mReverbIRPath.Get());
-    if (mReverbIRLoadFailed)
-      SendControlMsgFromDelegate(kCtrlTagReverbIRFileBrowser, kMsgTagLoadFailed);
-  }
-
   if (mModel != nullptr)
   {
     _UpdateControlsFromModel();
@@ -785,14 +735,13 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kReverbIRPreDelay:
     case kReverbIRLowCut:
     case kReverbIRHighCut:
-    case kReverbIRWetLevel: _ApplyReverbIRParams(); break;
+    case kReverbIRWetLevel: break; // Reserved legacy Reverb IDs; intentionally inactive.
     case kPreEQBypass:
     case kPreEQLowCut:
     case kPreEQLowShelfGain:
     case kPreEQMidGain:
     case kPreEQMidFrequency:
     case kPreEQHighShelfGain: _ApplyPreEQParams(); break;
-    case kPostEQBypass:
     case kPostEQLowCut:
     case kPostEQBand1Frequency:
     case kPostEQBand1Gain:
@@ -802,12 +751,23 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kPostEQBand3Gain:
     case kPostEQBand4Frequency:
     case kPostEQBand4Gain:
-    case kPostEQHighCut: _ApplyPostEQParams(); break;
+    case kPostEQHighCut:
     // Reserved legacy Post-EQ Q parameters. V1 uses fixed per-band Q.
     case kPostEQBand1Q:
     case kPostEQBand2Q:
     case kPostEQBand3Q:
     case kPostEQBand4Q: break;
+    case kGraphicEQ62HzGain:
+    case kGraphicEQ125HzGain:
+    case kGraphicEQ250HzGain:
+    case kGraphicEQ500HzGain:
+    case kGraphicEQ1kHzGain:
+    case kGraphicEQ2kHzGain:
+    case kGraphicEQ4kHzGain:
+    case kGraphicEQ8kHzGain:
+    case kGraphicEQ16kHzGain:
+    case kGraphicEQPostLevel:
+    case kPostEQBypass: _ApplyPostEQParams(); break;
     default: break;
   }
 }
@@ -822,10 +782,6 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
     {
       case kNoiseGateActive: pGraphics->GetControlWithParamIdx(kNoiseGateThreshold)->SetDisabled(!active); break;
       case kIRToggle: pGraphics->GetControlWithTag(kCtrlTagIRFileBrowser)->SetDisabled(!active); break;
-      case kReverbIRBypass:
-        pGraphics->ForControlInGroup("REVERB_CONTROLS",
-                                     [active](IControl* pControl) { pControl->SetDisabled(active); });
-        break;
       case kPreEQBypass:
         pGraphics->ForControlInGroup("PRE_EQ_CONTROLS",
                                      [active](IControl* pControl) { pControl->SetDisabled(active); });
@@ -844,11 +800,15 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
   switch (msgTag)
   {
     case kMsgTagClearModel: mShouldRemoveModel = true; return true;
-    case kMsgTagClearIR: mShouldRemoveIR = true; return true;
+    case kMsgTagClearIR:
+    {
+      std::lock_guard<std::mutex> lock(mSpeakerIRExchangeMutex);
+      mRetiredIR.reset();
+      mShouldRemoveIR = true;
+      return true;
+    }
     case kMsgTagClearReverbIR:
       mReverbIRPath.Set("");
-      mReverbIRLoadFailed = false;
-      mReverbIRStage.RequestClear();
       return true;
     case kMsgTagHighlightColor:
     {
@@ -894,7 +854,6 @@ void NeuralAmpModeler::_AllocateIOPointers(const size_t nChans)
 
 void NeuralAmpModeler::_ApplyDSPStaging()
 {
-  mReverbIRStage.ApplyStaged();
   // Remove marked modules
   if (mShouldRemoveModel)
   {
@@ -906,11 +865,23 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     _SetInputGain();
     _SetOutputGain();
   }
-  if (mShouldRemoveIR)
+
+  if (mSpeakerIRExchangeMutex.try_lock())
   {
-    mIR = nullptr;
-    mIRPath.Set("");
-    mShouldRemoveIR = false;
+    if (mShouldRemoveIR)
+    {
+      mRetiredIR = std::move(mIR);
+      mIRPath.Set("");
+      mIRChannelFormat = 1;
+      mShouldRemoveIR = false;
+    }
+    if (mStagedIR != nullptr)
+    {
+      mRetiredIR = std::move(mIR);
+      mIRChannelFormat = static_cast<int>(mStagedIR->GetNumIRChannels());
+      mIR = std::move(mStagedIR);
+    }
+    mSpeakerIRExchangeMutex.unlock();
   }
   // Move things from staged to live
   if (mStagedModel != nullptr)
@@ -921,11 +892,6 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     _UpdateLatency();
     _SetInputGain();
     _SetOutputGain();
-  }
-  if (mStagedIR != nullptr)
-  {
-    mIR = std::move(mStagedIR);
-    mStagedIR = nullptr;
   }
 }
 
@@ -975,6 +941,7 @@ void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBl
     {
       const auto irData = mStagedIR->GetData();
       mStagedIR = std::make_unique<dsp::ImpulseResponse>(irData, sampleRate);
+      mStagedIR->Prepare(static_cast<size_t>(std::max(maxBlockSize, 1)));
     }
   }
   else if (mIR != nullptr)
@@ -984,6 +951,7 @@ void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBl
     {
       const auto irData = mIR->GetData();
       mStagedIR = std::make_unique<dsp::ImpulseResponse>(irData, sampleRate);
+      mStagedIR->Prepare(static_cast<size_t>(std::max(maxBlockSize, 1)));
     }
   }
 }
@@ -1095,11 +1063,20 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   WDL_String previousIRPath = mIRPath;
   const double sampleRate = GetSampleRate();
   dsp::wav::LoadReturnCode wavState = dsp::wav::LoadReturnCode::ERROR_OTHER;
+  int candidateChannels = 1;
   try
   {
     auto irPathU8 = std::filesystem::u8path(irPath.Get());
-    mStagedIR = std::make_unique<dsp::ImpulseResponse>(irPathU8.string().c_str(), sampleRate);
-    wavState = mStagedIR->GetWavState();
+    auto candidate = std::make_unique<dsp::ImpulseResponse>(irPathU8.string().c_str(), sampleRate);
+    wavState = candidate->GetWavState();
+    if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
+    {
+      candidateChannels = static_cast<int>(candidate->GetNumIRChannels());
+      candidate->Prepare(static_cast<size_t>(std::max(GetBlockSize(), 1)));
+      std::lock_guard<std::mutex> lock(mSpeakerIRExchangeMutex);
+      mRetiredIR.reset();
+      mStagedIR = std::move(candidate);
+    }
   }
   catch (std::runtime_error& e)
   {
@@ -1111,47 +1088,16 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
   {
     mIRPath = irPath;
+    mIRChannelFormat = candidateChannels;
     SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadedIR, mIRPath.GetLength(), mIRPath.Get());
   }
   else
   {
-    if (mStagedIR != nullptr)
-    {
-      mStagedIR = nullptr;
-    }
     mIRPath = previousIRPath;
     SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed);
   }
 
   return wavState;
-}
-
-dsp::wav::LoadReturnCode NeuralAmpModeler::_StageReverbIR(const WDL_String& irPath)
-{
-  const auto result = mReverbIRStage.StageFile(irPath.Get(), GetSampleRate(), std::max(GetBlockSize(), 1));
-  if (result == dsp::wav::LoadReturnCode::SUCCESS)
-  {
-    mReverbIRPath = irPath;
-    mReverbIRLoadFailed = false;
-    _ApplyReverbIRParams();
-  }
-  else
-  {
-    mReverbIRLoadFailed = true;
-  }
-  return result;
-}
-
-void NeuralAmpModeler::_ApplyReverbIRParams()
-{
-  const bool bypassed = GetParam(kReverbIRBypass)->Bool();
-  const double wetMix = GetParam(kReverbIRMix)->Value() * 0.01;
-  const double preDelaySeconds = GetParam(kReverbIRPreDelay)->Value() * 0.001;
-  mReverbIRStage.SetBypassed(bypassed);
-  mReverbIRStage.SetWetMix(wetMix);
-  mReverbIRStage.SetPreDelaySeconds(preDelaySeconds);
-  mReverbIRStage.SetWetFilterFrequencies(GetParam(kReverbIRLowCut)->Value(), GetParam(kReverbIRHighCut)->Value());
-  mReverbIRStage.SetWetOutputGain(std::pow(10.0, GetParam(kReverbIRWetLevel)->Value() / 20.0));
 }
 
 void NeuralAmpModeler::_ApplyPreEQParams()
@@ -1166,12 +1112,12 @@ void NeuralAmpModeler::_ApplyPreEQParams()
 void NeuralAmpModeler::_ApplyPostEQParams()
 {
   mPostEQStage.SetBypassed(GetParam(kPostEQBypass)->Bool());
-  mPostEQStage.SetHighPassFrequency(GetParam(kPostEQLowCut)->Value());
-  mPostEQStage.SetBand(0, GetParam(kPostEQBand1Frequency)->Value(), GetParam(kPostEQBand1Gain)->Value());
-  mPostEQStage.SetBand(1, GetParam(kPostEQBand2Frequency)->Value(), GetParam(kPostEQBand2Gain)->Value());
-  mPostEQStage.SetBand(2, GetParam(kPostEQBand3Frequency)->Value(), GetParam(kPostEQBand3Gain)->Value());
-  mPostEQStage.SetBand(3, GetParam(kPostEQBand4Frequency)->Value(), GetParam(kPostEQBand4Gain)->Value());
-  mPostEQStage.SetLowPassFrequency(GetParam(kPostEQHighCut)->Value());
+  const std::array<int, danger::signal_chain::GraphicEQStage::kNumBands> params{
+    kGraphicEQ62HzGain, kGraphicEQ125HzGain, kGraphicEQ250HzGain, kGraphicEQ500HzGain, kGraphicEQ1kHzGain,
+    kGraphicEQ2kHzGain, kGraphicEQ4kHzGain, kGraphicEQ8kHzGain, kGraphicEQ16kHzGain};
+  for (std::size_t band = 0; band < params.size(); ++band)
+    mPostEQStage.SetBandGain(band, GetParam(params[band])->Value());
+  mPostEQStage.SetPostLevelDB(GetParam(kGraphicEQPostLevel)->Value());
 }
 
 size_t NeuralAmpModeler::_GetBufferNumChannels() const
@@ -1190,7 +1136,7 @@ size_t NeuralAmpModeler::_GetBufferNumFrames() const
 void NeuralAmpModeler::_PrepareBuffers(const size_t numChannels, const size_t numFrames)
 {
   const bool updateChannels = numChannels != _GetBufferNumChannels();
-  const bool updateFrames = updateChannels || (_GetBufferNumFrames() != numFrames);
+  const bool updateFrames = updateChannels || (_GetBufferNumFrames() < numFrames);
   //  if (!updateChannels && !updateFrames)  // Could we do this?
   //    return;
 
@@ -1259,18 +1205,24 @@ void NeuralAmpModeler::_ProcessOutput(iplug::sample** inputs, iplug::sample** ou
 {
   const double gain = mOutputGain;
   // Assume _PrepareBuffers() was already called
-  if (nChansIn != 1)
-    throw std::runtime_error("Plugin is supposed to process in mono.");
-  // Broadcast the internal mono stream to all output channels.
-  const size_t cin = 0;
+  if (nChansIn < 1 || nChansIn > kMaximumInternalChannels)
+    throw std::runtime_error("Invalid internal channel count.");
   for (auto cout = 0; cout < nChansOut; cout++)
     for (auto s = 0; s < nFrames; s++)
+    {
+      if (cout >= static_cast<int>(kMaximumInternalChannels))
+      {
+        outputs[cout][s] = 0.0;
+        continue;
+      }
+      const size_t cin = nChansIn == 1 ? 0 : std::min(static_cast<size_t>(cout), nChansIn - 1);
 #ifdef APP_API // Ensure valid output to interface
       outputs[cout][s] = std::clamp(gain * inputs[cin][s], -1.0, 1.0);
 #else // In a DAW, other things may come next and should be able to handle large
       // values.
       outputs[cout][s] = gain * inputs[cin][s];
 #endif
+    }
 }
 
 void NeuralAmpModeler::_UpdateControlsFromModel()

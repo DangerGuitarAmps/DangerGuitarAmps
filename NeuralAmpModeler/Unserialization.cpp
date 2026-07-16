@@ -42,9 +42,10 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
     std::string name = it.key();
     const bool deprecatedToneStackParam =
       name == "Bass" || name == "Middle" || name == "Treble" || name == "ToneStack";
-    const bool deprecatedPostEQQParam = name == "PostEQBand1Q" || name == "PostEQBand2Q"
-                                        || name == "PostEQBand3Q" || name == "PostEQBand4Q";
-    if (deprecatedToneStackParam || deprecatedPostEQQParam)
+    const bool deprecatedPostEQParam = name.rfind("PostEQBand", 0) == 0 || name == "PostEQLowCut"
+                                       || name == "PostEQHighCut";
+    const bool deprecatedReverbParam = name.rfind("ReverbIR", 0) == 0;
+    if (deprecatedToneStackParam || deprecatedPostEQParam || deprecatedReverbParam)
     {
       iplug::Trace(TRACELOC, "%s DEPRECATED-IGNORED", name.c_str());
       continue;
@@ -65,7 +66,8 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
 
   mNAMPath.Set(static_cast<std::string>(config["NAMPath"]).c_str());
   mIRPath.Set(static_cast<std::string>(config["IRPath"]).c_str());
-  mReverbIRPath.Set(static_cast<std::string>(config["ReverbIRPath"]).c_str());
+  // Consume the legacy path field but never reactivate the removed Reverb IR engine.
+  mReverbIRPath.Set("");
 
   if (mNAMPath.GetLength())
   {
@@ -74,21 +76,6 @@ void NeuralAmpModeler::_UnserializeApplyConfig(nlohmann::json& config)
   if (mIRPath.GetLength())
   {
     _StageIR(mIRPath);
-  }
-  if (mReverbIRPath.GetLength())
-  {
-    // A missing or unsupported Reverb IR is non-fatal. State restoration
-    // explicitly clears and bypasses the engine on failure.
-    if (_StageReverbIR(mReverbIRPath) != dsp::wav::LoadReturnCode::SUCCESS)
-    {
-      mReverbIRStage.RequestClear();
-      mReverbIRStage.SetBypassed(true);
-    }
-  }
-  else
-  {
-    mReverbIRStage.RequestClear();
-    mReverbIRStage.SetBypassed(true);
   }
 }
 
@@ -608,7 +595,7 @@ int NeuralAmpModeler::_UnserializeStateWithKnownVersion(const iplug::IByteChunk&
     assert(false);
   }
   _UnserializeApplyConfig(config);
-  return pos;
+  return _UnserializeIRFormatExtension(chunk, pos);
 }
 
 int NeuralAmpModeler::_UnserializeStateWithUnknownVersion(const iplug::IByteChunk& chunk, int startPos)
@@ -616,5 +603,62 @@ int NeuralAmpModeler::_UnserializeStateWithUnknownVersion(const iplug::IByteChun
   nlohmann::json config;
   int pos = _GetConfigFrom_Earlier(chunk, startPos, config);
   _UnserializeApplyConfig(config);
+  return _UnserializeIRFormatExtension(chunk, pos);
+}
+
+int NeuralAmpModeler::_UnserializeIRFormatExtension(const iplug::IByteChunk& chunk, const int startPos)
+{
+  // Stereo support appends an optional extension after the historical
+  // parameter payload. Old chunks end at startPos and therefore take this
+  // safe mono default without any out-of-bounds read.
+  mIRChannelFormat = 1;
+  if (startPos < 0 || startPos >= chunk.Size())
+    return startPos;
+
+  constexpr const char* kMarker = "DangerIRFormatV1";
+  const auto readMarker = [&chunk, kMarker](const int markerPos, WDL_String& marker) {
+    int length = 0;
+    if (chunk.Get(&length, markerPos) < 0 || length != static_cast<int>(strlen(kMarker)))
+      return -1;
+    const int end = chunk.GetStr(marker, markerPos);
+    return end >= 0 && strcmp(marker.Get(), kMarker) == 0 ? end : -1;
+  };
+  WDL_String marker;
+  int pos = readMarker(startPos, marker);
+  if (pos < 0)
+  {
+    // Current states append the nine graphic-EQ gains and Post Level after
+    // the historical named payload. Older states have either no suffix or
+    // the stereo marker immediately at startPos.
+    constexpr std::array<int, 10> params{
+      kGraphicEQ62HzGain, kGraphicEQ125HzGain, kGraphicEQ250HzGain, kGraphicEQ500HzGain, kGraphicEQ1kHzGain,
+      kGraphicEQ2kHzGain, kGraphicEQ4kHzGain, kGraphicEQ8kHzGain, kGraphicEQ16kHzGain, kGraphicEQPostLevel};
+    pos = startPos;
+    std::array<double, params.size()> values{};
+    for (double& value : values)
+    {
+      pos = chunk.Get(&value, pos);
+      if (pos < 0)
+        return startPos;
+    }
+    const int markerEnd = readMarker(pos, marker);
+    if (markerEnd < 0)
+      return startPos;
+    for (size_t i = 0; i < params.size(); ++i)
+      GetParam(params[i])->Set(values[i]);
+    _ApplyPostEQParams();
+    pos = markerEnd;
+  }
+
+  int cabinetChannels = 1;
+  int reverbChannels = 1;
+  pos = chunk.Get(&cabinetChannels, pos);
+  if (pos < 0)
+    return startPos;
+  pos = chunk.Get(&reverbChannels, pos);
+  if (pos < 0)
+    return startPos;
+  mIRChannelFormat.store(cabinetChannels == 2 ? 2 : 1, std::memory_order_relaxed);
+  (void)reverbChannels; // Reserved legacy field; Reverb IR processing was removed.
   return pos;
 }
